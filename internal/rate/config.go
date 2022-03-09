@@ -9,7 +9,7 @@ import (
 const (
 	defCheckInt    = 1 * time.Minute // Check and evict every 1 minute
 	defMinEvictDur = 3 * time.Minute // limiter evicted must be inactive for 3 minutes
-	defCapacity    = 100             // Evict old IPs if size of IP list grows larger than 100
+	defCapacity    = 100             // Evict old IPs if size of limiter if larger than 100
 )
 
 type (

@@ -1,6 +1,7 @@
 package node
 
 import (
+	"context"
 	"fmt"
 	"math/rand"
 	"net"
@@ -8,11 +9,10 @@ import (
 	"sync"
 	"time"
 
-	prom "github.com/harmony-one/harmony/api/service/prometheus"
-	"github.com/prometheus/client_golang/prometheus"
-
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/rlp"
+	prom "github.com/harmony-one/harmony/api/service/prometheus"
+	"github.com/harmony-one/harmony/internal/rate"
 	lru "github.com/hashicorp/golang-lru"
 	"github.com/pkg/errors"
 
@@ -422,11 +422,26 @@ func (node *Node) SendNewBlockToUnsync() {
 	}
 }
 
+const defaultDNSServerTimeout = 3 * time.Second
+
 // CalculateResponse implements DownloadInterface on Node object.
 func (node *Node) CalculateResponse(request *downloader_pb.DownloaderRequest, incomingPeer string) (*downloader_pb.DownloaderResponse, error) {
 	response := &downloader_pb.DownloaderResponse{}
 	if node.NodeConfig.IsOffline {
 		return response, nil
+	}
+
+	ip, _, err := net.SplitHostPort(incomingPeer)
+	if err != nil {
+		return nil, errors.New("invalid ip address")
+	}
+	w := node.calculateRequestWeight(request)
+	ctx, cancel := context.WithTimeout(context.Background(), defaultDNSServerTimeout)
+	defer cancel()
+
+	err = node.dnsServerLimiter.WaitN(ctx, ip, w)
+	if err != nil {
+		return nil, err
 	}
 
 	switch request.Type {
@@ -603,6 +618,52 @@ func (node *Node) CalculateResponse(request *downloader_pb.DownloaderRequest, in
 	}
 
 	return response, nil
+}
+
+const (
+	blockHashRequestWeight       = 1
+	blockHeaderRequestWeight     = 3
+	blockRequestWeight           = 10
+	blockHeightRequestWeight     = 1
+	newBlockRequestWeight        = 1
+	registerRequestWeight        = 999999 // Disabled for now
+	registerTimeOutRequestWeight = 0
+	defaultRequestWeight         = 0
+)
+
+func (node *Node) calculateRequestWeight(request *downloader_pb.DownloaderRequest) int {
+	switch request.Type {
+	case downloader_pb.DownloaderRequest_BLOCKHASH:
+		return blockHashRequestWeight
+	case downloader_pb.DownloaderRequest_BLOCKHEADER:
+		return blockHeaderRequestWeight * len(request.Hashes)
+	case downloader_pb.DownloaderRequest_BLOCK:
+		return blockRequestWeight * len(request.Hashes)
+	case downloader_pb.DownloaderRequest_BLOCKHEIGHT:
+		return blockHeightRequestWeight
+	case downloader_pb.DownloaderRequest_NEWBLOCK:
+		return newBlockRequestWeight
+	case downloader_pb.DownloaderRequest_REGISTER:
+		return registerRequestWeight
+	case downloader_pb.DownloaderRequest_REGISTERTIMEOUT:
+		return registerTimeOutRequestWeight
+	default:
+	}
+	return defaultRequestWeight
+}
+
+const (
+	beaconLimiterRate  = 50  // Allow generating tokens of 15 blocks over 3 seconds
+	beaconLimiterBurst = 150 // Burst to download 15 blocks, each sync batch is 30 blocks
+	shardLimiterRate   = 300 // 30 blocks per second
+	shardLimiterBurst  = 300 // Burst to download 30 blocks
+)
+
+func (node *Node) getDNSServerLimiter() rate.IDLimiter {
+	if node.NodeConfig.ShardID == shard.BeaconChainShardID {
+		return rate.NewLimiterPerID(beaconLimiterRate, beaconLimiterBurst, nil)
+	}
+	return rate.NewLimiterPerID(shardLimiterRate, shardLimiterBurst, nil)
 }
 
 func init() {
