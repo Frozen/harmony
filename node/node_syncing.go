@@ -15,6 +15,7 @@ import (
 	"github.com/harmony-one/harmony/internal/rate"
 	lru "github.com/hashicorp/golang-lru"
 	"github.com/pkg/errors"
+	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/harmony-one/harmony/api/service"
 	"github.com/harmony-one/harmony/api/service/legacysync"
@@ -647,6 +648,8 @@ func (node *Node) calculateRequestWeight(request *downloader_pb.DownloaderReques
 		return registerRequestWeight
 	case downloader_pb.DownloaderRequest_REGISTERTIMEOUT:
 		return registerTimeOutRequestWeight
+	case downloader_pb.DownloaderRequest_BLOCKBYHEIGHT:
+		return blockRequestWeight * len(request.Heights)
 	default:
 	}
 	return defaultRequestWeight
