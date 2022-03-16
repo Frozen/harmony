@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common/math"
+	"github.com/harmony-one/harmony/shard"
 
 	nodeconfig "github.com/harmony-one/harmony/internal/configs/node"
 
@@ -882,7 +883,11 @@ func (ss *StateSync) UpdateBlockAndStatus(block *types.Block, bc *core.BlockChai
 		}
 	}
 
+	now := time.Now()
 	_, err := bc.InsertChain([]*types.Block{block}, false /* verifyHeaders */)
+	if bc.ShardID() == shard.BeaconChainShardID {
+		fmt.Println("UpdateBlockAndStatus: ", time.Since(now))
+	}
 	if err != nil {
 		utils.Logger().Error().
 			Err(err).
