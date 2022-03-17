@@ -107,7 +107,7 @@ func (p *StateProcessor) Process(
 
 	shardID := block.ShardID()
 	fi := func(mess string) {
-		if shardID == shard.BeaconChainShardID {
+		if shardID == shard.BeaconChainShardID && false {
 			fmt.Println(mess, time.Since(now))
 		}
 	}
@@ -132,9 +132,11 @@ func (p *StateProcessor) Process(
 	// Iterate over and process the individual transactions
 	for i, tx := range block.Transactions() {
 		statedb.Prepare(tx.Hash(), block.Hash(), i)
+		fi(fmt.Sprintf("StateProcessor Process block.Transactions() after prepare %d", i))
 		receipt, cxReceipt, stakeMsgs, _, err := ApplyTransaction(
 			p.config, p.bc, &beneficiary, gp, statedb, header, tx, usedGas, cfg,
 		)
+		fi(fmt.Sprintf("StateProcessor Process block.Transactions() after apply %d", i))
 		if err != nil {
 			return nil, nil, nil, nil, 0, nil, statedb, err
 		}
@@ -146,7 +148,7 @@ func (p *StateProcessor) Process(
 			blockStakeMsgs = append(blockStakeMsgs, stakeMsgs...)
 		}
 		allLogs = append(allLogs, receipt.Logs...)
-		fi(fmt.Sprintf("StateProcessor Process block.Transactions() %d", i))
+
 	}
 	utils.Logger().Debug().Int64("elapsed time", time.Now().Sub(startTime).Milliseconds()).Msg("Process Normal Txns")
 
@@ -163,20 +165,18 @@ func (p *StateProcessor) Process(
 		}
 		receipts = append(receipts, receipt)
 		allLogs = append(allLogs, receipt.Logs...)
-		fi(fmt.Sprintf("StateProcessor Process block.StakingTransactions() %d", i))
 	}
 	utils.Logger().Debug().Int64("elapsed time", time.Now().Sub(startTime).Milliseconds()).Msg("Process Staking Txns")
 
 	// incomingReceipts should always be processed
 	// after transactions (to be consistent with the block proposal)
-	for i, cx := range block.IncomingReceipts() {
+	for _, cx := range block.IncomingReceipts() {
 		if err := ApplyIncomingReceipt(
 			p.config, statedb, header, cx,
 		); err != nil {
 			return nil, nil,
 				nil, nil, 0, nil, statedb, errors.New("[Process] Cannot apply incoming receipts")
 		}
-		fi(fmt.Sprintf("StateProcessor Process block.IncomingReceipts() %d", i))
 	}
 
 	slashes := slash.Records{}
@@ -201,7 +201,6 @@ func (p *StateProcessor) Process(
 	if err != nil {
 		return nil, nil, nil, nil, 0, nil, statedb, errors.New("[Process] Cannot finalize block")
 	}
-	fi(fmt.Sprintf("StateProcessor Process Finalize "))
 
 	result := &ProcessorResult{
 		Receipts:   receipts,
