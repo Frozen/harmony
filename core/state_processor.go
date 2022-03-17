@@ -136,7 +136,6 @@ func (p *StateProcessor) Process(
 			blockStakeMsgs = append(blockStakeMsgs, stakeMsgs...)
 		}
 		allLogs = append(allLogs, receipt.Logs...)
-
 	}
 	utils.Logger().Debug().Int64("elapsed time", time.Now().Sub(startTime).Milliseconds()).Msg("Process Normal Txns")
 
@@ -254,6 +253,7 @@ func ApplyTransaction(config *params.ChainConfig, bc ChainContext, author *commo
 		signer = types.MakeSigner(config, header.Epoch())
 	}
 	msg, err := tx.AsMessage(signer)
+
 	// skip signer err for additiononly tx
 	if err != nil {
 		return nil, nil, nil, 0, err
