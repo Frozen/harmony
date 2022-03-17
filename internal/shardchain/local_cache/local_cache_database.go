@@ -2,6 +2,7 @@ package local_cache
 
 import (
 	"bytes"
+	"fmt"
 	"time"
 
 	"github.com/allegro/bigcache"
@@ -56,6 +57,7 @@ func NewLocalCacheDatabase(remoteDB ethdb.KeyValueStore, cacheConfig CacheConfig
 				Int("count", cache.Len()).
 				Int("size", cache.Capacity()).
 				Msg("local-cache stats")
+			fmt.Println("NewLocalCacheDatabase stats: ", cache.Stats())
 		}
 	}()
 
