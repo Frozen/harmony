@@ -103,15 +103,6 @@ func (p *StateProcessor) Process(
 		}
 	}
 
-	now := time.Now()
-
-	shardID := block.ShardID()
-	fi := func(mess string) {
-		if shardID == shard.BeaconChainShardID {
-			fmt.Println(mess, time.Since(now))
-		}
-	}
-
 	var (
 		receipts       types.Receipts
 		outcxs         types.CXReceipts
@@ -132,11 +123,9 @@ func (p *StateProcessor) Process(
 	// Iterate over and process the individual transactions
 	for i, tx := range block.Transactions() {
 		statedb.Prepare(tx.Hash(), block.Hash(), i)
-		fi(fmt.Sprintf("StateProcessor Process block.Transactions() after prepare %d", i))
 		receipt, cxReceipt, stakeMsgs, _, err := ApplyTransaction(
 			p.config, p.bc, &beneficiary, gp, statedb, header, tx, usedGas, cfg,
 		)
-		fi(fmt.Sprintf("StateProcessor Process block.Transactions() after apply %d", i))
 		if err != nil {
 			return nil, nil, nil, nil, 0, nil, statedb, err
 		}
@@ -244,6 +233,14 @@ func getTransactionType(
 // for the transaction, gas used and an error if the transaction failed,
 // indicating the block was invalid.
 func ApplyTransaction(config *params.ChainConfig, bc ChainContext, author *common.Address, gp *GasPool, statedb *state.DB, header *block.Header, tx *types.Transaction, usedGas *uint64, cfg vm.Config) (*types.Receipt, *types.CXReceipt, []staking.StakeMsg, uint64, error) {
+	now := time.Now()
+
+	shardID := bc.ShardID()
+	fi := func(mess string) {
+		if shardID == shard.BeaconChainShardID {
+			fmt.Println(mess, time.Since(now))
+		}
+	}
 	txType := getTransactionType(config, header, tx)
 	if txType == types.InvalidTx {
 		return nil, nil, nil, 0, errors.New("Invalid Transaction Type")
@@ -266,7 +263,7 @@ func ApplyTransaction(config *params.ChainConfig, bc ChainContext, author *commo
 		signer = types.MakeSigner(config, header.Epoch())
 	}
 	msg, err := tx.AsMessage(signer)
-
+	fi("ApplyTransaction tx.AsMessage")
 	// skip signer err for additiononly tx
 	if err != nil {
 		return nil, nil, nil, 0, err
@@ -283,6 +280,7 @@ func ApplyTransaction(config *params.ChainConfig, bc ChainContext, author *commo
 	if err != nil {
 		return nil, nil, nil, 0, err
 	}
+	fi("ApplyTransaction apply message")
 	// Update the state with pending changes
 	var root []byte
 	if config.IsS3(header.Epoch()) {
@@ -290,6 +288,7 @@ func ApplyTransaction(config *params.ChainConfig, bc ChainContext, author *commo
 	} else {
 		root = statedb.IntermediateRoot(config.IsS3(header.Epoch())).Bytes()
 	}
+	fi("ApplyTransaction finalize")
 	*usedGas += result.UsedGas
 
 	failedExe := result.VMErr != nil
@@ -308,6 +307,7 @@ func ApplyTransaction(config *params.ChainConfig, bc ChainContext, author *commo
 		receipt.Logs = statedb.GetLogs(tx.Hash())
 	}
 	receipt.Bloom = types.CreateBloom(types.Receipts{receipt})
+	fi("ApplyTransaction create bloom")
 
 	var cxReceipt *types.CXReceipt
 	// Do not create cxReceipt if EVM call failed
