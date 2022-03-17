@@ -251,7 +251,7 @@ func (st *StateTransition) TransitionDb() (ExecutionResult, error) {
 		st.state.SetNonce(msg.From(), st.state.GetNonce(sender.Address())+1)
 		ret, st.gas, vmErr = evm.Call(sender, st.to(), st.data, st.gas, st.value)
 	}
-	fi("TransitionDb contractCreation")
+	fi(fmt.Sprintf("TransitionDb contractCreation %v", contractCreation))
 	if vmErr != nil {
 		utils.Logger().Debug().Err(vmErr).Msg("VM returned with error")
 		// The only possible consensus-error would be if there wasn't
