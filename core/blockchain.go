@@ -1430,6 +1430,7 @@ func (bc *BlockChain) insertChain(chain types.Blocks, verifyHeaders bool) (int, 
 		if err == nil {
 			err = bc.Validator().ValidateBody(block)
 		}
+		fi(fmt.Sprintf("BlockChain insertChain block %d validate body", i))
 		switch {
 		case err == ErrKnownBlock:
 			// Block and state both already known. However if the current block is below
@@ -1505,6 +1506,7 @@ func (bc *BlockChain) insertChain(chain types.Blocks, verifyHeaders bool) (int, 
 		} else {
 			parent = chain[i-1]
 		}
+		fi(fmt.Sprintf("BlockChain insertChain block %d get block", i))
 		state, err := state.New(parent.Root(), bc.stateCache)
 		if err != nil {
 			return i, events, coalescedLogs, err
@@ -1515,6 +1517,7 @@ func (bc *BlockChain) insertChain(chain types.Blocks, verifyHeaders bool) (int, 
 		receipts, cxReceipts, stakeMsgs, logs, usedGas, payout, newState, err := bc.processor.Process(
 			block, state, bc.vmConfig, true,
 		)
+		fi(fmt.Sprintf("BlockChain insertChain block %d Process", i))
 		state = newState // update state in case the new state is cached.
 		if err != nil {
 			bc.reportBlock(block, receipts, err)
@@ -1531,6 +1534,8 @@ func (bc *BlockChain) insertChain(chain types.Blocks, verifyHeaders bool) (int, 
 		trieproc += state.StorageReads + state.StorageUpdates
 		blockExecutionTimer.Update(time.Since(substart) - trieproc - triehash)
 
+		fi(fmt.Sprintf("BlockChain insertChain block %d updates", i))
+
 		// Validate the state using the default validator
 		substart = time.Now()
 		if err := bc.Validator().ValidateState(
@@ -1540,6 +1545,7 @@ func (bc *BlockChain) insertChain(chain types.Blocks, verifyHeaders bool) (int, 
 			return i, events, coalescedLogs, err
 		}
 		proctime := time.Since(bstart)
+		fi(fmt.Sprintf("BlockChain insertChain block %d validate state", i))
 
 		// Update the metrics touched during block validation
 		accountHashTimer.Update(state.AccountHashes) // Account hashes are complete, we can mark them
@@ -1554,6 +1560,7 @@ func (bc *BlockChain) insertChain(chain types.Blocks, verifyHeaders bool) (int, 
 		if err != nil {
 			return i, events, coalescedLogs, err
 		}
+		fi(fmt.Sprintf("BlockChain insertChain block %d write block with state", i))
 		logger := utils.Logger().With().
 			Str("number", block.Number().String()).
 			Str("hash", block.Hash().Hex()).
