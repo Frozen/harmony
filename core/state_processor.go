@@ -107,7 +107,7 @@ func (p *StateProcessor) Process(
 
 	shardID := block.ShardID()
 	fi := func(mess string) {
-		if shardID == shard.BeaconChainShardID && false {
+		if shardID == shard.BeaconChainShardID {
 			fmt.Println(mess, time.Since(now))
 		}
 	}
