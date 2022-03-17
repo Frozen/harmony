@@ -44,9 +44,9 @@ func NewLeveldbShard(savePath string, diskCount int, diskShards int) (shard *Lev
 	}()
 
 	levelDBOptions := &opt.Options{
-		OpenFilesCacheCapacity: 128,
-		WriteBuffer:            8 << 20,  //8MB, max memory occupyv = 8*2*diskCount*diskShards
-		BlockCacheCapacity:     16 << 20, //16MB
+		OpenFilesCacheCapacity: 256,
+		WriteBuffer:            64 << 20, //8MB, max memory occupyv = 8*2*diskCount*diskShards
+		BlockCacheCapacity:     64 << 20, //16MB
 		Filter:                 filter.NewBloomFilter(8),
 		DisableSeeksCompaction: true,
 	}
