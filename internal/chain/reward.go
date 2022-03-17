@@ -140,7 +140,7 @@ func lookupDelegatorShares(
 // This func also do IncrementValidatorSigningCounts for validators
 func AccumulateRewardsAndCountSigs(
 	bc engine.ChainReader, state *state.DB,
-	header *block.Header, beaconChain engine.ChainReader, sigsReady chan bool,
+	header *block.Header, beaconChain engine.ChainReader, sigsReady <-chan bool,
 ) (reward.Reader, error) {
 	blockNum := header.Number().Uint64()
 
@@ -288,7 +288,7 @@ func AccumulateRewardsAndCountSigs(
 	return network.NewPreStakingEraRewarded(totalAmount), nil
 }
 
-func waitForCommitSigs(sigsReady chan bool) error {
+func waitForCommitSigs(sigsReady <-chan bool) error {
 	select {
 	case success := <-sigsReady:
 		if !success {
@@ -409,7 +409,7 @@ func distributeRewardAfterAggregateEpoch(bc engine.ChainReader, state *state.DB,
 }
 
 func distributeRewardBeforeAggregateEpoch(bc engine.ChainReader, state *state.DB, header *block.Header, beaconChain engine.ChainReader,
-	defaultReward numeric.Dec, sigsReady chan bool) (reward.Reader, error) {
+	defaultReward numeric.Dec, sigsReady <-chan bool) (reward.Reader, error) {
 	newRewards, payouts :=
 		big.NewInt(0), []reward.Payout{}
 

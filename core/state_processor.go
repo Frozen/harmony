@@ -17,6 +17,7 @@
 package core
 
 import (
+	"fmt"
 	"math/big"
 	"time"
 
@@ -102,6 +103,15 @@ func (p *StateProcessor) Process(
 		}
 	}
 
+	now := time.Now()
+
+	shardID := block.ShardID()
+	fi := func(mess string) {
+		if shardID == shard.BeaconChainShardID {
+			fmt.Println(mess, time.Since(now))
+		}
+	}
+
 	var (
 		receipts       types.Receipts
 		outcxs         types.CXReceipts
@@ -136,6 +146,7 @@ func (p *StateProcessor) Process(
 			blockStakeMsgs = append(blockStakeMsgs, stakeMsgs...)
 		}
 		allLogs = append(allLogs, receipt.Logs...)
+		fi(fmt.Sprintf("StateProcessor Process block.Transactions() %d", i))
 	}
 	utils.Logger().Debug().Int64("elapsed time", time.Now().Sub(startTime).Milliseconds()).Msg("Process Normal Txns")
 
@@ -152,18 +163,20 @@ func (p *StateProcessor) Process(
 		}
 		receipts = append(receipts, receipt)
 		allLogs = append(allLogs, receipt.Logs...)
+		fi(fmt.Sprintf("StateProcessor Process block.StakingTransactions() %d", i))
 	}
 	utils.Logger().Debug().Int64("elapsed time", time.Now().Sub(startTime).Milliseconds()).Msg("Process Staking Txns")
 
 	// incomingReceipts should always be processed
 	// after transactions (to be consistent with the block proposal)
-	for _, cx := range block.IncomingReceipts() {
+	for i, cx := range block.IncomingReceipts() {
 		if err := ApplyIncomingReceipt(
 			p.config, statedb, header, cx,
 		); err != nil {
 			return nil, nil,
 				nil, nil, 0, nil, statedb, errors.New("[Process] Cannot apply incoming receipts")
 		}
+		fi(fmt.Sprintf("StateProcessor Process block.IncomingReceipts() %d", i))
 	}
 
 	slashes := slash.Records{}
@@ -188,6 +201,7 @@ func (p *StateProcessor) Process(
 	if err != nil {
 		return nil, nil, nil, nil, 0, nil, statedb, errors.New("[Process] Cannot finalize block")
 	}
+	fi(fmt.Sprintf("StateProcessor Process Finalize "))
 
 	result := &ProcessorResult{
 		Receipts:   receipts,
