@@ -19,6 +19,7 @@ package core
 import (
 	"fmt"
 	"math/big"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/rlp"
@@ -209,6 +210,14 @@ func (st *StateTransition) preCheck() error {
 // returning the result including the used gas. It returns an error if failed.
 // An error indicates a consensus issue.
 func (st *StateTransition) TransitionDb() (ExecutionResult, error) {
+	now := time.Now()
+
+	//shardID := bc.ShardID()
+	fi := func(mess string) {
+		//if shardID == shard.BeaconChainShardID {
+		fmt.Println(mess, time.Since(now))
+		//}
+	}
 	if err := st.preCheck(); err != nil {
 		return ExecutionResult{}, err
 	}
@@ -217,6 +226,8 @@ func (st *StateTransition) TransitionDb() (ExecutionResult, error) {
 	homestead := st.evm.ChainConfig().IsS3(st.evm.EpochNumber) // s3 includes homestead
 	istanbul := st.evm.ChainConfig().IsIstanbul(st.evm.EpochNumber)
 	contractCreation := msg.To() == nil
+
+	fi("TransitionDb msg.To() == nil")
 
 	// Pay intrinsic gas
 	gas, err := vm.IntrinsicGas(st.data, contractCreation, homestead, istanbul, false)
@@ -240,6 +251,7 @@ func (st *StateTransition) TransitionDb() (ExecutionResult, error) {
 		st.state.SetNonce(msg.From(), st.state.GetNonce(sender.Address())+1)
 		ret, st.gas, vmErr = evm.Call(sender, st.to(), st.data, st.gas, st.value)
 	}
+	fi("TransitionDb contractCreation")
 	if vmErr != nil {
 		utils.Logger().Debug().Err(vmErr).Msg("VM returned with error")
 		// The only possible consensus-error would be if there wasn't
@@ -251,12 +263,14 @@ func (st *StateTransition) TransitionDb() (ExecutionResult, error) {
 		}
 	}
 	st.refundGas()
-
+	fi("TransitionDb st.refundGas()")
 	// Burn Txn Fees after staking epoch
 	if !st.evm.ChainConfig().IsStaking(st.evm.EpochNumber) {
 		txFee := new(big.Int).Mul(new(big.Int).SetUint64(st.gasUsed()), st.gasPrice)
 		st.state.AddBalance(st.evm.Coinbase, txFee)
 	}
+
+	fi("TransitionDb ")
 
 	return ExecutionResult{
 		ReturnData: ret,
