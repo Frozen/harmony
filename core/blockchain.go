@@ -1336,11 +1336,8 @@ func (bc *BlockChain) GetMaxGarbageCollectedBlockNumber() int64 {
 //
 // After insertion is done, all accumulated events will be fired.
 func (bc *BlockChain) InsertChain(chain types.Blocks, verifyHeaders bool) (int, error) {
-	now := time.Now()
 	n, events, logs, err := bc.insertChain(chain, verifyHeaders)
-	fmt.Println("InsertChain insertChain: ", time.Since(now))
 	bc.PostChainEvents(events, logs)
-	fmt.Println("InsertChain PostChainEvents: ", time.Since(now))
 	return n, err
 }
 
@@ -1348,6 +1345,13 @@ func (bc *BlockChain) InsertChain(chain types.Blocks, verifyHeaders bool) (int, 
 // only reason this method exists as a separate one is to make locking cleaner
 // with deferred statements.
 func (bc *BlockChain) insertChain(chain types.Blocks, verifyHeaders bool) (int, []interface{}, []*types.Log, error) {
+	now := time.Now()
+	shardID := bc.CurrentBlock().ShardID()
+	fi := func(mess string) {
+		if shardID == shard.BeaconChainShardID {
+			fmt.Println(mess, time.Since(now))
+		}
+	}
 	// Sanity check that we have something meaningful to import
 	if len(chain) == 0 {
 		return 0, nil, nil, nil
@@ -1387,6 +1391,8 @@ func (bc *BlockChain) insertChain(chain types.Blocks, verifyHeaders bool) (int, 
 
 	var verifyHeadersResults <-chan error
 
+	fi("BlockChain insertChain: ")
+
 	// If the block header chain has not been verified, conduct header verification here.
 	if verifyHeaders {
 		headers := make([]*block.Header, len(chain))
@@ -1401,6 +1407,8 @@ func (bc *BlockChain) insertChain(chain types.Blocks, verifyHeaders bool) (int, 
 		verifyHeadersResults = results
 		defer close(abort)
 	}
+
+	fi("BlockChain insertChain after verify headers: ")
 
 	// Start a parallel signature recovery (signer will fluke on fork transition, minimal perf loss)
 	//senderCacher.recoverFromBlocks(types.MakeSigner(bc.chainConfig, chain[0].Number()), chain)
@@ -1579,6 +1587,7 @@ func (bc *BlockChain) insertChain(chain types.Blocks, verifyHeaders bool) (int, 
 		stats.usedGas += usedGas
 		cache, _ := bc.stateCache.TrieDB().Size()
 		stats.report(chain, i, cache)
+		fi(fmt.Sprintf("BlockChain insertChain added block: %d", i))
 	}
 	// Append a single chain head event if we've progressed the chain
 	if lastCanon != nil && bc.CurrentBlock().Hash() == lastCanon.Hash() {
