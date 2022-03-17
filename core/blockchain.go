@@ -1336,8 +1336,11 @@ func (bc *BlockChain) GetMaxGarbageCollectedBlockNumber() int64 {
 //
 // After insertion is done, all accumulated events will be fired.
 func (bc *BlockChain) InsertChain(chain types.Blocks, verifyHeaders bool) (int, error) {
+	now := time.Now()
 	n, events, logs, err := bc.insertChain(chain, verifyHeaders)
+	fmt.Println("InsertChain insertChain: ", time.Since(now))
 	bc.PostChainEvents(events, logs)
+	fmt.Println("InsertChain PostChainEvents: ", time.Since(now))
 	return n, err
 }
 
