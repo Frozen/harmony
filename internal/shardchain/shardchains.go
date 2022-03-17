@@ -1,7 +1,6 @@
 package shardchain
 
 import (
-	"fmt"
 	"math/big"
 	"sync"
 
@@ -66,9 +65,6 @@ func NewCollection(
 // ShardChain returns the blockchain for the given shard,
 // opening one as necessary.
 func (sc *CollectionImpl) ShardChain(shardID uint32) (*core.BlockChain, error) {
-
-	fmt.Printf("!!!!!!!!!!! %d ShardChain %+v\n", shardID, sc.dbFactory)
-
 	sc.mtx.Lock()
 	defer sc.mtx.Unlock()
 	if bc, ok := sc.pool[shardID]; ok {
