@@ -1,6 +1,7 @@
 package legacysync
 
 import (
+	"fmt"
 	"sync"
 	"time"
 
@@ -151,6 +152,8 @@ func (ss *EpochSync) syncLoop(bc *core.BlockChain, worker *worker.Worker, isBeac
 
 // ProcessStateSync processes state sync from the blocks received but not yet processed so far
 func (ss *EpochSync) ProcessStateSync(heights []uint64, bc *core.BlockChain, worker *worker.Worker) error {
+
+	fmt.Println("EpochSync ProcessStateSync heights", heights)
 
 	var payload [][]byte
 
