@@ -1,6 +1,7 @@
 package legacysync
 
 import (
+	"fmt"
 	"sync"
 	"time"
 
@@ -110,6 +111,7 @@ func (ss *EpochSync) syncLoop(bc *core.BlockChain, worker *worker.Worker, isBeac
 	for {
 		block := bc.CurrentBlock()
 		height := block.NumberU64()
+		fmt.Printf("==EpochSync syncLoop max %d cur %d\n", maxHeight, height)
 		if height >= maxHeight {
 			utils.Logger().Info().
 				Msgf("[SYNC] Node is now IN SYNC! (isBeacon: %t, ShardID: %d, otherHeight: %d, currentHeight: %d)",

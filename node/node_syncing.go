@@ -220,6 +220,8 @@ func (node *Node) doBeaconSyncing() {
 		return
 	}
 
+	fmt.Println("==Node doBeaconSyncing")
+
 	if !node.NodeConfig.Downloader {
 		// If Downloader is not working, we need also deal with blocks from beaconBlockChannel
 		go func(node *Node) {

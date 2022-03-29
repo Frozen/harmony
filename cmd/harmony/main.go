@@ -415,6 +415,9 @@ func setupNodeAndRun(hc harmonyconfig.HarmonyConfig) {
 		utils.Logger().Info().Msg("support gRPC sync server")
 		currentNode.SupportGRPCSyncServer(hc.DNSSync.ServerPort)
 	}
+
+	fmt.Printf("==setupNodeAndRun %v %v\n", hc.DNSSync.Client, !hc.General.IsOffline)
+
 	if hc.DNSSync.Client && !hc.General.IsOffline {
 		utils.Logger().Info().Msg("go with gRPC sync client")
 		currentNode.StartGRPCSyncClient()
