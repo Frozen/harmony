@@ -152,6 +152,7 @@ func (node *Node) Blockchain() *core.BlockChain {
 
 // Beaconchain returns the beaconchain from node.
 func (node *Node) Beaconchain() *core.BlockChain {
+	panic("Beaconchain")
 	return node.chain(shard.BeaconChainShardID, core.Options{})
 }
 
