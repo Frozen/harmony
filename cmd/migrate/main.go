@@ -14,7 +14,7 @@ func p(err error) {
 }
 
 func main() {
-	db, err := leveldb.New("/data", 256, 1024, "")
+	db, err := leveldb.New("/data/harmony_db_0", 256, 1024, "")
 	p(err)
 	iter := db.NewIterator()
 
