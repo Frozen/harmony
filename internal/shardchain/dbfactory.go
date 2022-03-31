@@ -39,7 +39,7 @@ func (f *LDBFactory) NewChainDB(shardID uint32) (ethdb.Database, error) {
 	}
 	return rawdb.NewDatabase(local_cache.NewLocalCacheDatabase(rd, local_cache.CacheConfig{
 		CacheTime: 60 * time.Minute,
-		CacheSize: int((7 * memory.FreeMemory()) / 10),
+		CacheSize: int((7 * memory.FreeMemory()) / (10 * 1024 * 1024)),
 	})), nil
 }
 
