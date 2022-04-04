@@ -1346,6 +1346,9 @@ func (bc *BlockChain) insertChain(chain types.Blocks, verifyHeaders bool) (int, 
 	if len(chain) == 0 {
 		return 0, nil, nil, nil
 	}
+	now := time.Now()
+	bl1 := chain[0]
+	defer fmt.Println(bl1.GasUsed(), " ", bl1.Transactions().Len(), " ", time.Since(now).Milliseconds())
 	// Do a sanity check that the provided chain is actually ordered and linked
 	for i := 1; i < len(chain); i++ {
 		if chain[i].NumberU64() != chain[i-1].NumberU64()+1 || chain[i].ParentHash() != chain[i-1].Hash() {
