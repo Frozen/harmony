@@ -44,7 +44,7 @@ func NewLocalCacheDatabase(remoteDB ethdb.KeyValueStore, cacheConfig CacheConfig
 	db := &LocalCacheDatabase{
 		KeyValueStore: remoteDB,
 
-		enableReadCache: true,
+		enableReadCache: false,
 		deleteMap:       make(map[string]bool),
 		readCache:       &cacheWrapper{cache},
 	}

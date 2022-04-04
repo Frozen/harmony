@@ -3,7 +3,6 @@ package shardchain
 import (
 	"fmt"
 	"path"
-	"path/filepath"
 	"time"
 
 	"github.com/harmony-one/harmony/internal/shardchain/leveldb_shard"
@@ -56,8 +55,8 @@ type LDBShardFactory struct {
 
 // NewChainDB returns a new memDB for the blockchain for given shard.
 func (f *LDBShardFactory) NewChainDB(shardID uint32) (ethdb.Database, error) {
-	dir := filepath.Join(f.RootDir, fmt.Sprintf("%s_%d", LDBShardDirPrefix, shardID))
-	shard, err := leveldb_shard.NewLeveldbShard(dir, f.DiskCount, f.ShardCount)
+	//dir := filepath.Join(f.RootDir, fmt.Sprintf("%s_%d", LDBShardDirPrefix, shardID))
+	shard, err := leveldb_shard.NewLeveldbShard(f.RootDir, f.DiskCount, f.ShardCount)
 	if err != nil {
 		return nil, err
 	}

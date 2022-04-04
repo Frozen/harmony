@@ -56,6 +56,7 @@ func NewLeveldbShard(savePath string, diskCount int, diskShards int) (shard *Lev
 	for i := 0; i < diskCount; i++ {
 		for j := 0; j < diskShards; j++ {
 			shardPath := filepath.Join(savePath, fmt.Sprintf("disk%02d", i), fmt.Sprintf("block%02d", j))
+			fmt.Println(shardPath)
 			dbIndex := i*diskShards + j
 			wg.Add(1)
 			go func() {
