@@ -745,7 +745,13 @@ func (pool *TxPool) validateTx(tx types.PoolTransaction, local bool) error {
 	}
 	stakingTx, isStakingTx := tx.(*staking.StakingTransaction)
 	if !isStakingTx || (isStakingTx && stakingTx.StakingType() != staking.DirectiveDelegate) {
-		if pool.currentState.GetBalance(from).Cmp(cost) < 0 {
+		balance := pool.currentState.GetBalance(from)
+		if balance.Cmp(cost) < 0 {
+			utils.Logger().Debug().
+				Str("hash", tx.Hash().Hex()).
+				Str("balance", balance.String()).
+				Str("cost", cost.String()).
+				Msg("Missing chain context in txPool")
 			return errors.Wrapf(
 				ErrInsufficientFunds,
 				"current shard-id: %d",
