@@ -683,6 +683,7 @@ func (pool *TxPool) local() map[common.Address]types.PoolTransactions {
 // validateTx checks whether a transaction is valid according to the consensus
 // rules and adheres to some heuristic limits of the local node (price and size).
 func (pool *TxPool) validateTx(tx types.PoolTransaction, local bool) error {
+	fmt.Println("validate: ", tx.Hash().Hex())
 	if tx.ShardID() != pool.chain.CurrentBlock().ShardID() {
 		return errors.WithMessagef(ErrInvalidShard, "transaction shard is %d", tx.ShardID())
 	}
@@ -752,6 +753,7 @@ func (pool *TxPool) validateTx(tx types.PoolTransaction, local bool) error {
 				Str("balance", balance.String()).
 				Str("cost", cost.String()).
 				Msg("Missing chain context in txPool")
+			fmt.Printf("insufficient funds: %s %s %s\n", tx.Hash().Hex(), balance.String(), cost.String())
 			return errors.Wrapf(
 				ErrInsufficientFunds,
 				"current shard-id: %d",
