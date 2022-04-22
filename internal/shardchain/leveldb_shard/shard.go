@@ -126,23 +126,19 @@ func (l *LeveldbShard) NewBatch() ethdb.Batch {
 	return NewLeveldbShardBatch(l)
 }
 
+// bytesPrefixRange returns key range that satisfy
+// - the given prefix, and
+// - the given seek position
+func bytesPrefixRange(prefix, start []byte) *util.Range {
+	r := util.BytesPrefix(prefix)
+	r.Start = append(r.Start, start...)
+	return r
+}
+
 // NewIterator creates a binary-alphabetical iterator over the entire keyspace
 // contained within the key-value database.
-func (l *LeveldbShard) NewIterator() ethdb.Iterator {
-	return l.iterator(nil)
-}
-
-// NewIteratorWithStart creates a binary-alphabetical iterator over a subset of
-// database content starting at a particular initial key (or after, if it does
-// not exist).
-func (l *LeveldbShard) NewIteratorWithStart(start []byte) ethdb.Iterator {
-	return l.iterator(&util.Range{Start: start})
-}
-
-// NewIteratorWithPrefix creates a binary-alphabetical iterator over a subset
-// of database content with a particular key prefix.
-func (l *LeveldbShard) NewIteratorWithPrefix(prefix []byte) ethdb.Iterator {
-	return l.iterator(util.BytesPrefix(prefix))
+func (l *LeveldbShard) NewIterator(prefix []byte, start []byte) ethdb.Iterator {
+	return l.iterator(bytesPrefixRange(prefix, start))
 }
 
 func (l *LeveldbShard) iterator(slice *util.Range) ethdb.Iterator {

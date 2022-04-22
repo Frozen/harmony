@@ -187,7 +187,7 @@ func DeleteValidatorSnapshot(db DatabaseDeleter, addr common.Address, epoch *big
 }
 
 func IteratorValidatorSnapshot(iterator DatabaseIterator, cb func(addr common.Address, epoch *big.Int) bool) (minKey []byte, maxKey []byte) {
-	iter := iterator.NewIteratorWithPrefix(validatorSnapshotPrefix)
+	iter := iterator.NewIterator(validatorSnapshotPrefix, nil)
 	defer iter.Release()
 
 	minKey = validatorSnapshotPrefix
@@ -208,10 +208,10 @@ func IteratorValidatorSnapshot(iterator DatabaseIterator, cb func(addr common.Ad
 }
 
 func IteratorCXReceipt(iterator DatabaseIterator, cb func(it ethdb.Iterator, shardID uint32, number uint64, hash common.Hash) bool) {
-	preifxKey := cxReceiptPrefix
-	iter := iterator.NewIteratorWithPrefix(preifxKey)
+	prefixKey := cxReceiptPrefix
+	iter := iterator.NewIterator(prefixKey, nil)
 	defer iter.Release()
-	shardOffset := len(preifxKey)
+	shardOffset := len(prefixKey)
 	numberOffset := shardOffset + 4
 	hashOffset := numberOffset + 8
 
@@ -229,7 +229,7 @@ func IteratorCXReceipt(iterator DatabaseIterator, cb func(it ethdb.Iterator, sha
 
 func IteratorCXReceiptsProofSpent(iterator DatabaseIterator, cb func(it ethdb.Iterator, shardID uint32, number uint64) bool) {
 	preifxKey := cxReceiptSpentPrefix
-	iter := iterator.NewIteratorWithPrefix(preifxKey)
+	iter := iterator.NewIterator(preifxKey, nil)
 	defer iter.Release()
 	shardOffset := len(preifxKey)
 	numberOffset := shardOffset + 4
@@ -246,7 +246,7 @@ func IteratorCXReceiptsProofSpent(iterator DatabaseIterator, cb func(it ethdb.It
 }
 func IteratorValidatorStats(iterator DatabaseIterator, cb func(it ethdb.Iterator, addr common.Address) bool) {
 	preifxKey := validatorStatsPrefix
-	iter := iterator.NewIteratorWithPrefix(preifxKey)
+	iter := iterator.NewIterator(preifxKey, nil)
 	defer iter.Release()
 	addrOffset := len(preifxKey)
 
@@ -260,10 +260,10 @@ func IteratorValidatorStats(iterator DatabaseIterator, cb func(it ethdb.Iterator
 	}
 }
 func IteratorDelegatorDelegations(iterator DatabaseIterator, cb func(it ethdb.Iterator, delegator common.Address) bool) {
-	preifxKey := delegatorValidatorListPrefix
-	iter := iterator.NewIteratorWithPrefix(preifxKey)
+	prefixKey := delegatorValidatorListPrefix
+	iter := iterator.NewIterator(prefixKey, nil)
 	defer iter.Release()
-	addrOffset := len(preifxKey)
+	addrOffset := len(prefixKey)
 
 	for iter.Next() {
 		// validatorSnapshotKey = validatorSnapshotPrefix + addr bytes (20 bytes) + epoch bytes

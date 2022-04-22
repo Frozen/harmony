@@ -35,5 +35,5 @@ type DatabaseDeleter interface {
 }
 
 type DatabaseIterator interface {
-	NewIteratorWithPrefix(prefix []byte) ethdb.Iterator
+	NewIterator(prefix []byte, key []byte) ethdb.Iterator
 }

@@ -3,7 +3,6 @@ module github.com/harmony-one/harmony
 go 1.16
 
 require (
-	github.com/VictoriaMetrics/fastcache v1.5.7 // indirect
 	github.com/Workiva/go-datastructures v1.0.50
 	github.com/allegro/bigcache v1.2.1
 	github.com/aristanetworks/goarista v0.0.0-20190607111240-52c2a7864a08 // indirect
@@ -69,4 +68,4 @@ require (
 	honnef.co/go/tools v0.0.1-2020.1.5 // indirect
 )
 
-replace github.com/ethereum/go-ethereum => github.com/ethereum/go-ethereum v1.9.9
+replace github.com/ethereum/go-ethereum => github.com/ethereum/go-ethereum v1.9.15

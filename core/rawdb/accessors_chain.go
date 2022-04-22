@@ -421,7 +421,7 @@ func FindCommonAncestor(db DatabaseReader, a, b *block.Header) *block.Header {
 }
 
 func IteratorBlocks(iterator DatabaseIterator, cb func(blockNum uint64, hash common.Hash) bool) (minKey []byte, maxKey []byte) {
-	iter := iterator.NewIteratorWithPrefix(headerPrefix)
+	iter := iterator.NewIterator(headerPrefix, nil)
 	defer iter.Release()
 
 	minKey = headerPrefix
