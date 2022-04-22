@@ -901,7 +901,7 @@ func (bc *BlockChain) Stop() {
 						Str("hash", recent.Hash().Hex()).
 						Str("root", recent.Root().Hex()).
 						Msg("Writing cached state to disk")
-					if err := triedb.Commit(recent.Root(), true); err != nil {
+					if err := triedb.Commit(recent.Root(), true, nil); err != nil {
 						utils.Logger().Error().Err(err).Msg("Failed to commit recent state trie")
 					}
 				}
@@ -1203,7 +1203,7 @@ func (bc *BlockChain) WriteBlockWithState(
 	// Flush trie state into disk if it's archival node or the block is epoch block
 	triedb := bc.stateCache.TrieDB()
 	if bc.cacheConfig.Disabled || block.IsLastBlockInEpoch() {
-		if err := triedb.Commit(root, false); err != nil {
+		if err := triedb.Commit(root, false, nil); err != nil {
 			if isUnrecoverableErr(err) {
 				fmt.Printf("Unrecoverable error when committing triedb: %v\nExitting\n", err)
 				os.Exit(1)
@@ -1241,7 +1241,7 @@ func (bc *BlockChain) WriteBlockWithState(
 							Msg("State in memory for too long, committing")
 					}
 					// Flush an entire trie and restart the counters
-					triedb.Commit(header.Root(), true)
+					triedb.Commit(header.Root(), true, nil)
 					lastWrite = chosen
 					bc.gcproc = 0
 				}
