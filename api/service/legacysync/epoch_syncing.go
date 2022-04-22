@@ -1,7 +1,6 @@
 package legacysync
 
 import (
-	"fmt"
 	"sync"
 	"time"
 
@@ -63,7 +62,7 @@ func (ss *EpochSync) isInSync(doubleCheck bool) SyncCheckResult {
 		utils.Logger().Info().
 			Uint64("OtherHeight", otherHeight1).
 			Uint64("lastHeight", lastHeight).
-			Msg("[SYNC] Checking sync status")
+			Msg("[EPOCHSYNC] Checking sync status")
 		return SyncCheckResult{
 			IsInSync:    inSync,
 			OtherHeight: otherHeight1,
@@ -113,13 +112,13 @@ func (ss *EpochSync) syncLoop(bc *core.BlockChain, worker *worker.Worker, isBeac
 		height := block.NumberU64()
 		if height >= maxHeight {
 			utils.Logger().Info().
-				Msgf("[SYNC] Node is now IN SYNC! (isBeacon: %t, ShardID: %d, otherHeight: %d, currentHeight: %d)",
+				Msgf("[EPOCHSYNC] Node is now IN SYNC! (isBeacon: %t, ShardID: %d, otherHeight: %d, currentHeight: %d)",
 					isBeacon, bc.ShardID(), maxHeight, height)
 			return 60
 		}
 
 		utils.Logger().Info().
-			Msgf("[SYNC] Node is OUT OF SYNC (isBeacon: %t, ShardID: %d, otherHeight: %d, currentHeight: %d)",
+			Msgf("[EPOCHSYNC] Node is OUT OF SYNC (isBeacon: %t, ShardID: %d, otherHeight: %d, currentHeight: %d)",
 				isBeacon, bc.ShardID(), maxHeight, height)
 
 		var heights []uint64
@@ -143,7 +142,7 @@ func (ss *EpochSync) syncLoop(bc *core.BlockChain, worker *worker.Worker, isBeac
 		err := ss.ProcessStateSync(heights, bc, worker)
 		if err != nil {
 			utils.Logger().Error().Err(err).
-				Msgf("[SYNC] ProcessStateSync failed (isBeacon: %t, ShardID: %d, otherHeight: %d, currentHeight: %d)",
+				Msgf("[EPOCHSYNC] ProcessStateSync failed (isBeacon: %t, ShardID: %d, otherHeight: %d, currentHeight: %d)",
 					isBeacon, bc.ShardID(), maxHeight, height)
 			return 2
 		}
@@ -152,11 +151,7 @@ func (ss *EpochSync) syncLoop(bc *core.BlockChain, worker *worker.Worker, isBeac
 
 // ProcessStateSync processes state sync from the blocks received but not yet processed so far
 func (ss *EpochSync) ProcessStateSync(heights []uint64, bc *core.BlockChain, worker *worker.Worker) error {
-
-	fmt.Println("EpochSync ProcessStateSync heights", heights)
-
 	var payload [][]byte
-
 	ss.syncConfig.ForEachPeer(func(peerConfig *SyncPeerConfig) (brk bool) {
 		resp := peerConfig.GetClient().GetBlocksByHeights(heights)
 		if resp == nil {
