@@ -68,4 +68,4 @@ require (
 	honnef.co/go/tools v0.0.1-2020.1.5 // indirect
 )
 
-replace github.com/ethereum/go-ethereum => github.com/ethereum/go-ethereum v1.9.18
+replace github.com/ethereum/go-ethereum => github.com/ethereum/go-ethereum v1.9.19
