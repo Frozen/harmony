@@ -1,4 +1,4 @@
-package txfees
+package main
 
 import (
 	"fmt"
@@ -21,7 +21,7 @@ func main() {
 	a.Commands = []cli.Command{
 		{
 			Name:   "run",
-			Usage:  "Generate and write result",
+			Usage:  "Retrieve all fees",
 			Action: cmdRun,
 			Flags: []cli.Flag{
 				cli.StringFlag{
@@ -98,7 +98,13 @@ func cmdRun(c *cli.Context) error {
 	if start == 0 {
 		return fmt.Errorf("block is required")
 	}
-	for block := GetBlockByNumber(db, uint64(start)); block != nil; start++ {
+	for {
+		block := GetBlockByNumber(db, uint64(start))
+		if block == nil {
+			break
+		}
+		//fmt.Println("block:", block)
+		fmt.Println("Proceeding block: ", start)
 		for _, tx := range block.Transactions() {
 			receipts := GetReceiptsByHash(db, tx.Hash())
 			if len(receipts) == 0 {
@@ -115,6 +121,7 @@ func cmdRun(c *cli.Context) error {
 				fmt.Fprintf(f, "%d %s %d\n", block.NumberU64(), tx.Hash().Hex(), receipt.CumulativeGasUsed)
 			}
 		}
+		start++
 	}
 	return nil
 }
