@@ -189,6 +189,7 @@ func cmdRun(c *cli.Context) error {
 }
 
 func cmdCalc(c *cli.Context) error {
+	fmt.Println("start ", c.Int64("start"))
 	path := c.String("path")
 	f, err := os.Open(path)
 	if err != nil {
@@ -217,6 +218,11 @@ func cmdCalc(c *cli.Context) error {
 		if err != nil {
 			fmt.Println("error scan:", err)
 			break
+		}
+
+		if start <= uint64(c.Int64("start")) {
+			fmt.Println("skip", start)
+			continue
 		}
 
 		if start%100000 == 0 {
