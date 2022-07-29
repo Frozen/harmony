@@ -268,6 +268,6 @@ func cmdCalc(c *cli.Context) error {
 	}
 
 	fmt.Println("Total gas:", totalGas.String())
-	fmt.Println("Total gas:", totalGas.Div(decimal.NewFromInt(10_000_000_000)).String())
+	fmt.Println("Total gas:", totalGas.Div(decimal.NewFromInt(1e18)).String())
 	return nil
 }
