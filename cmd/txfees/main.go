@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	"math/big"
 	"os"
 	"os/signal"
 	"syscall"
@@ -45,6 +46,11 @@ func main() {
 					Value: "",
 					Usage: "Specify output file",
 					//Required: true,
+				},
+				cli.Int64Flag{
+					Name:  "count",
+					Value: 0,
+					Usage: "Specify number of blocks to process",
 				},
 				//cli.StringFlag{
 				//	Name:     argNameTargetPackage,
@@ -129,6 +135,7 @@ func cmdRun(c *cli.Context) error {
 	if path == "" {
 		return fmt.Errorf("path is required")
 	}
+	count := c.Int64("count")
 	db := getDB(path)
 	defer db.Close()
 
@@ -150,6 +157,11 @@ func cmdRun(c *cli.Context) error {
 
 	for {
 
+		if count <= 0 {
+			fmt.Println("stop on count")
+			break
+		}
+
 		select {
 		case <-ctx.Done():
 			fmt.Println("exit on ctx.Done()")
@@ -157,21 +169,28 @@ func cmdRun(c *cli.Context) error {
 		default:
 		}
 
-		block := GetBlockHash(db, uint64(start))
+		block := GetBlockByNumber(db, uint64(start))
 		if block == nil {
 			fmt.Printf("block %d not found\n", start)
 			break
 		}
+		var prices []*big.Int
+		for _, tx := range block.Transactions() {
+			prices = append(prices, tx.GasPrice())
+		}
+		for _, tx := range block.StakingTransactions() {
+			prices = append(prices, tx.GasPrice())
+		}
 		//fmt.Println("block:", block)
 		fmt.Printf("Proceeding block: %d\n", start)
 		//for _, tx := range block.Transactions() {
-		receipts := GetReceiptsByHash(db, *block)
+		receipts := GetReceiptsByHash(db, block.Hash())
 		//if len(receipts) == 0 {
 		//	fmt.Println("no receipt for block: ", start)
 		//}
 		for i, receipt := range receipts {
-			fmt.Printf("r: %+v\n", receipt.CumulativeGasUsed)
-			_, err := buf.WriteString(fmt.Sprintf("%d %d %d\n", start, i, receipt.CumulativeGasUsed))
+			//fmt.Printf("r: %+v\n", receipt.CumulativeGasUsed)
+			_, err := buf.WriteString(fmt.Sprintf("%d %d %s\n", start, i, prices[i].Mul(prices[i], big.NewInt(int64(receipt.GasUsed))).String()))
 			if err != nil {
 				panic(err)
 			}
@@ -184,6 +203,7 @@ func cmdRun(c *cli.Context) error {
 		//		fmt.Fprintf(f, "%d %s %d\n", block.NumberU64(), tx.Hash().Hex(), receipt.CumulativeGasUsed)
 		//	}
 		//}
+		count--
 		start++
 	}
 	return nil
