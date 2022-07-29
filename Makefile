@@ -160,3 +160,6 @@ go-test:
 
 cnt:
 	go run cmd/txfees/main.go run --path=${path} --block=13608317
+
+calc:
+	go run cmd/txfees/main.go calc --path=${path}

@@ -1,8 +1,12 @@
 package main
 
 import (
+	"bufio"
+	"context"
 	"fmt"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/ethereum/go-ethereum/common"
 	rawdb2 "github.com/ethereum/go-ethereum/core/rawdb"
@@ -36,6 +40,31 @@ func main() {
 					Usage: "Specify starting block number",
 					//Required: true,
 				},
+				//cli.StringFlag{
+				//	Name:     argNameTargetPackage,
+				//	Value:    "",
+				//	Usage:    "Specify target package name",
+				//	Required: true,
+				//},
+			},
+		},
+		{
+			Name:   "calc",
+			Usage:  "calc fees",
+			Action: cmdCalc,
+			Flags: []cli.Flag{
+				cli.StringFlag{
+					Name:  "path",
+					Value: "",
+					Usage: "Specify path to source file",
+					//Required: true,
+				},
+				//cli.Int64Flag{
+				//	Name:  "block",
+				//	Value: 0,
+				//	Usage: "Specify starting block number",
+				//	//Required: true,
+				//},
 				//cli.StringFlag{
 				//	Name:     argNameTargetPackage,
 				//	Value:    "",
@@ -101,12 +130,27 @@ func cmdRun(c *cli.Context) error {
 	if err != nil {
 		panic(err)
 	}
+	defer f.Close()
+
+	ctx, _ := signal.NotifyContext(context.Background(), os.Interrupt, os.Kill, syscall.SIGTERM)
 
 	start := c.Int64("block")
 	if start == 0 {
 		return fmt.Errorf("block is required")
 	}
+
+	buf := bufio.NewWriter(f)
+	defer buf.Flush()
+
 	for {
+
+		select {
+		case <-ctx.Done():
+			fmt.Println("exit on ctx.Done()")
+			break
+		default:
+		}
+
 		block := GetBlockHash(db, uint64(start))
 		if block == nil {
 			fmt.Printf("block %d not found\n", start)
@@ -120,7 +164,11 @@ func cmdRun(c *cli.Context) error {
 		//	fmt.Println("no receipt for block: ", start)
 		//}
 		for i, receipt := range receipts {
-			fmt.Fprintf(f, "%d %d %d\n", start, i, receipt.CumulativeGasUsed)
+			_, err := buf.WriteString(fmt.Sprintf("%d %d %d\n", start, i, receipt.CumulativeGasUsed))
+			if err != nil {
+				panic(err)
+			}
+			//fmt.Fprintf(f, "%d %d %d\n", start, i, receipt.CumulativeGasUsed)
 		}
 		//}
 		//for _, tx := range block.StakingTransactions() {
@@ -131,5 +179,48 @@ func cmdRun(c *cli.Context) error {
 		//}
 		start++
 	}
+	return nil
+}
+
+func cmdCalc(c *cli.Context) error {
+	path := c.String("path")
+	f, err := os.Open(path)
+	if err != nil {
+		panic(err)
+	}
+	defer f.Close()
+
+	r := bufio.NewReader(f)
+
+	var (
+		start    uint64
+		i        int
+		gas      uint64
+		totalGas uint64
+	)
+
+	for {
+		l, _, err := r.ReadLine()
+		if err != nil {
+			fmt.Println(err)
+			break
+		}
+
+		_, err = fmt.Sscanf(string(l), "%d %d %d", &start, &i, &gas)
+		//_, err = fmt.Fscan(r, "%d %d %d", &start, &i, &gas)
+		if err != nil {
+			fmt.Println("error scan:", err)
+			break
+		}
+
+		if totalGas > totalGas+gas {
+			panic(fmt.Sprintf("gas overflow on %d %d %d", start, totalGas, gas))
+		}
+
+		totalGas += gas
+
+	}
+
+	fmt.Println("Total gas:", totalGas)
 	return nil
 }
