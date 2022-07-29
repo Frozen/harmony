@@ -159,4 +159,4 @@ go-test:
 	go test -vet=all -race ./...
 
 cnt:
-	go run cmd/txfees/main.go run --path=/Users/frozen/data1/harmony_db_0 --block=13608317
+	go run cmd/txfees/main.go run --path=${path} --block=13608317
