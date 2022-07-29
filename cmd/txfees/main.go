@@ -101,6 +101,7 @@ func cmdRun(c *cli.Context) error {
 	for {
 		block := GetBlockByNumber(db, uint64(start))
 		if block == nil {
+			fmt.Printf("block %d not found\n", start)
 			break
 		}
 		//fmt.Println("block:", block)
