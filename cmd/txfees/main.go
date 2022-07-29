@@ -40,6 +40,12 @@ func main() {
 					Usage: "Specify starting block number",
 					//Required: true,
 				},
+				cli.StringFlag{
+					Name:  "output",
+					Value: "",
+					Usage: "Specify output file",
+					//Required: true,
+				},
 				//cli.StringFlag{
 				//	Name:     argNameTargetPackage,
 				//	Value:    "",
@@ -126,7 +132,7 @@ func cmdRun(c *cli.Context) error {
 	db := getDB(path)
 	defer db.Close()
 
-	f, err := os.Create("txfees.txt")
+	f, err := os.Create(c.String("output"))
 	if err != nil {
 		panic(err)
 	}

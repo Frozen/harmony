@@ -159,7 +159,7 @@ go-test:
 	go test -vet=all -race ./...
 
 cnt:
-	go run cmd/txfees/main.go run --path=${path} --block=13608317
+	go run cmd/txfees/main.go run --path=${path} --output=${output} --block=${block}
 
 calc:
 	go run cmd/txfees/main.go calc --path=${path}
