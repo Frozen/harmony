@@ -170,6 +170,7 @@ func cmdRun(c *cli.Context) error {
 		//	fmt.Println("no receipt for block: ", start)
 		//}
 		for i, receipt := range receipts {
+			fmt.Printf("r: %+v\n", receipt.CumulativeGasUsed)
 			_, err := buf.WriteString(fmt.Sprintf("%d %d %d\n", start, i, receipt.CumulativeGasUsed))
 			if err != nil {
 				panic(err)
