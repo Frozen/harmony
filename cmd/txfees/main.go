@@ -219,6 +219,10 @@ func cmdCalc(c *cli.Context) error {
 			break
 		}
 
+		if start%100000 == 0 {
+			fmt.Println("at: ", start)
+		}
+
 		if totalGas > totalGas+gas {
 			panic(fmt.Sprintf("gas overflow on %d %d %d", start, totalGas, gas))
 		}
