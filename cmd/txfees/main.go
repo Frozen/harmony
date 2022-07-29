@@ -105,7 +105,7 @@ func cmdRun(c *cli.Context) error {
 			break
 		}
 		//fmt.Println("block:", block)
-		fmt.Println("Proceeding block: ", start)
+		fmt.Printf("Proceeding block: %d with %d and staking %d\n", start, len(block.Transactions()), len(block.Transactions()))
 		for _, tx := range block.Transactions() {
 			receipts := GetReceiptsByHash(db, tx.Hash())
 			if len(receipts) == 0 {
