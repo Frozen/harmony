@@ -15,6 +15,7 @@ import (
 	"github.com/harmony-one/harmony/core/rawdb"
 	"github.com/harmony-one/harmony/core/types"
 	"github.com/harmony-one/harmony/internal/utils"
+	"github.com/shopspring/decimal"
 	"gopkg.in/urfave/cli.v1"
 )
 
@@ -223,8 +224,8 @@ func cmdCalc(c *cli.Context) error {
 	var (
 		start    uint64
 		i        int
-		gas      uint64
-		totalGas uint64
+		gasS     string
+		totalGas decimal.Decimal
 	)
 
 	for {
@@ -234,7 +235,7 @@ func cmdCalc(c *cli.Context) error {
 			break
 		}
 
-		_, err = fmt.Sscanf(string(l), "%d %d %d", &start, &i, &gas)
+		_, err = fmt.Sscanf(string(l), "%d %d %s", &start, &i, &gasS)
 		//_, err = fmt.Fscan(r, "%d %d %d", &start, &i, &gas)
 		if err != nil {
 			fmt.Println("error scan:", err)
@@ -250,14 +251,23 @@ func cmdCalc(c *cli.Context) error {
 			fmt.Println("at: ", start)
 		}
 
-		if totalGas > totalGas+gas {
-			panic(fmt.Sprintf("gas overflow on %d %d %d", start, totalGas, gas))
+		price, err := decimal.NewFromString(gasS)
+		if err != nil {
+			fmt.Println("error parse:", err)
+			break
 		}
 
-		totalGas += gas
+		totalGas = totalGas.Add(price)
+
+		//if totalGas > totalGas+gas {
+		//	panic(fmt.Sprintf("gas overflow on %d %d %d", start, totalGas, gas))
+		//}
+
+		//totalGas += gas
 
 	}
 
-	fmt.Println("Total gas:", totalGas)
+	fmt.Println("Total gas:", totalGas.String())
+	fmt.Println("Total gas:", totalGas.Div(decimal.NewFromInt(10_000_000_000)).String())
 	return nil
 }
