@@ -81,6 +81,14 @@ func GetBlockByNumber(db ethdb.Database, number uint64) *types.Block {
 	return block
 }
 
+func GetBlockHash(db ethdb.Database, number uint64) *common.Hash {
+	hash := rawdb.ReadCanonicalHash(db, number)
+	if hash == (common.Hash{}) {
+		return nil
+	}
+	return &hash
+}
+
 func cmdRun(c *cli.Context) error {
 	path := c.String("path")
 	if path == "" {
@@ -99,29 +107,28 @@ func cmdRun(c *cli.Context) error {
 		return fmt.Errorf("block is required")
 	}
 	for {
-		block := GetBlockByNumber(db, uint64(start))
+		block := GetBlockHash(db, uint64(start))
 		if block == nil {
 			fmt.Printf("block %d not found\n", start)
 			break
 		}
 		//fmt.Println("block:", block)
-		fmt.Printf("Proceeding block: %d with %d and staking %d\n", start, len(block.Transactions()), len(block.Transactions()))
-		for _, tx := range block.Transactions() {
-			receipts := GetReceiptsByHash(db, tx.Hash())
-			if len(receipts) == 0 {
-				fmt.Println("no receipt for tx:", tx.Hash().Hex())
-			}
-			for _, receipt := range receipts {
-				fmt.Fprintf(f, "%d %s %d\n", block.NumberU64(), tx.Hash().Hex(), receipt.CumulativeGasUsed)
-			}
-
+		fmt.Printf("Proceeding block: %d\n", start)
+		//for _, tx := range block.Transactions() {
+		receipts := GetReceiptsByHash(db, *block)
+		//if len(receipts) == 0 {
+		//	fmt.Println("no receipt for block: ", start)
+		//}
+		for i, receipt := range receipts {
+			fmt.Fprintf(f, "%d %d %d\n", start, i, receipt.CumulativeGasUsed)
 		}
-		for _, tx := range block.StakingTransactions() {
-			receipts := GetReceiptsByHash(db, tx.Hash())
-			for _, receipt := range receipts {
-				fmt.Fprintf(f, "%d %s %d\n", block.NumberU64(), tx.Hash().Hex(), receipt.CumulativeGasUsed)
-			}
-		}
+		//}
+		//for _, tx := range block.StakingTransactions() {
+		//	receipts := GetReceiptsByHash(db, tx.Hash())
+		//	for _, receipt := range receipts {
+		//		fmt.Fprintf(f, "%d %s %d\n", block.NumberU64(), tx.Hash().Hex(), receipt.CumulativeGasUsed)
+		//	}
+		//}
 		start++
 	}
 	return nil
