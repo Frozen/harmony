@@ -65,12 +65,12 @@ func main() {
 					Usage: "Specify path to source file",
 					//Required: true,
 				},
-				//cli.Int64Flag{
-				//	Name:  "block",
-				//	Value: 0,
-				//	Usage: "Specify starting block number",
-				//	//Required: true,
-				//},
+				cli.Int64Flag{
+					Name:  "start",
+					Value: 0,
+					Usage: "start from block",
+					//Required: true,
+				},
 				//cli.StringFlag{
 				//	Name:     argNameTargetPackage,
 				//	Value:    "",

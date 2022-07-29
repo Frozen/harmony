@@ -162,4 +162,4 @@ cnt:
 	go run cmd/txfees/main.go run --path=${path} --output=${output} --block=${block}
 
 calc:
-	go run cmd/txfees/main.go calc --path=${path}
+	go run cmd/txfees/main.go calc --path=${path} --start=${start}
