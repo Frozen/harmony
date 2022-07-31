@@ -186,23 +186,25 @@ func cmdRun(c *cli.Context) error {
 		//fmt.Println("block:", block)
 		//fmt.Printf("Proceeding block: %d\n", start)
 		//for _, tx := range block.Transactions() {
-		receipts := GetReceiptsByHash(db, block.Hash())
+
 		//if len(receipts) == 0 {
 		//	fmt.Println("no receipt for block: ", start)
 		//}
-		for i, receipt := range receipts {
-			//fmt.Printf("r: %+v\n", receipt.CumulativeGasUsed)
-			_, err := buf.WriteString(
-				fmt.Sprintf("%d %d %s %s\n",
-					start,
-					i,
-					prices[i].Mul(prices[i], big.NewInt(int64(receipt.GasUsed))).String(),
-					time.Unix(block.Time().Int64(), 0).Format("2006-01-02"),
-				))
-			if err != nil {
-				panic(err)
+		if len(prices) > 0 {
+			receipts := GetReceiptsByHash(db, block.Hash())
+			for i, receipt := range receipts {
+				_, err := buf.WriteString(
+					fmt.Sprintf("%d %d %s %s\n",
+						start,
+						i,
+						prices[i].Mul(prices[i], big.NewInt(int64(receipt.GasUsed))).String(),
+						time.Unix(block.Time().Int64(), 0).Format("2006-01-02"),
+					))
+				if err != nil {
+					panic(err)
+				}
+				//fmt.Fprintf(f, "%d %d %d\n", start, i, receipt.CumulativeGasUsed)
 			}
-			//fmt.Fprintf(f, "%d %d %d\n", start, i, receipt.CumulativeGasUsed)
 		}
 		//}
 		//for _, tx := range block.StakingTransactions() {
