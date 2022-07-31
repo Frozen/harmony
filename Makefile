@@ -163,3 +163,6 @@ cnt:
 
 calc:
 	go run cmd/txfees/main.go calc --path=${path} --start=${start}
+
+calc2:
+	go run cmd/txfees/main.go calc2 --path=${path} --output=${output}

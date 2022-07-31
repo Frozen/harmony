@@ -87,6 +87,37 @@ func main() {
 				//},
 			},
 		},
+		{
+			Name:   "calc2",
+			Usage:  "calc2 fees",
+			Action: cmdCalc2,
+			Flags: []cli.Flag{
+				cli.StringFlag{
+					Name:  "path",
+					Value: "",
+					Usage: "Specify path to source file",
+					//Required: true,
+				},
+				cli.Int64Flag{
+					Name:  "start",
+					Value: 0,
+					Usage: "start from block",
+					//Required: true,
+				},
+				cli.StringFlag{
+					Name: "output",
+					//Value: 0,
+					Usage: "output",
+					//Required: true,
+				},
+				//cli.StringFlag{
+				//	Name:     argNameTargetPackage,
+				//	Value:    "",
+				//	Usage:    "Specify target package name",
+				//	Required: true,
+				//},
+			},
+		},
 	}
 
 	if err := a.Run(os.Args); err != nil {
@@ -278,5 +309,100 @@ func cmdCalc(c *cli.Context) error {
 
 	fmt.Println("Total gas:", totalGas.String())
 	fmt.Println("Total gas:", totalGas.Div(decimal.NewFromInt(1e18)).String())
+	return nil
+}
+
+func cmdCalc2(c *cli.Context) error {
+	fmt.Println("start ", c.Int64("start"))
+	path := c.String("path")
+	f, err := os.Open(path)
+	if err != nil {
+		panic(err)
+	}
+	defer f.Close()
+
+	output := c.String("output")
+	f2, err := os.Create(output)
+	if err != nil {
+		panic(err)
+	}
+	defer f2.Close()
+
+	r := bufio.NewReader(f)
+	w := bufio.NewWriter(f2)
+	defer w.Flush()
+
+	div := decimal.NewFromInt(1e18)
+
+	type scan struct {
+		blockNumber uint64
+		scanI       int
+		scanGas     string
+		dt          string
+	}
+	type counters struct {
+		blocksCount map[string]int
+		totalGas    decimal.Decimal
+	}
+
+	var (
+		prev    scan
+		current scan
+	)
+	counter := counters{
+		blocksCount: make(map[string]int),
+	}
+
+	defer func() {
+		w.WriteString(fmt.Sprintf("%s %s %d\n", current.dt, counter.totalGas.String(), counter.blocksCount[current.dt]))
+	}()
+
+	for {
+		l, _, err := r.ReadLine()
+		if err != nil {
+			fmt.Println(err)
+			break
+		}
+
+		_, err = fmt.Sscanf(
+			string(l), "%d %d %s %s", &current.blockNumber, &current.scanI, &current.scanGas, &current.dt)
+		if err != nil {
+			fmt.Println("error scan:", err)
+			break
+		}
+
+		counter.blocksCount[current.dt]++
+
+		if prev.dt != current.dt && !counter.totalGas.IsZero() {
+			_, err := w.WriteString(fmt.Sprintf("%s %s %d\n", current.dt, counter.totalGas.String(), counter.blocksCount[prev.dt]))
+			if err != nil {
+				fmt.Println("error scan:", err)
+				break
+			}
+			counter.totalGas = decimal.Zero
+		}
+
+		//if start <= uint64(c.Int64("start")) {
+		//	fmt.Println("skip", start)
+		//	continue
+		//}
+
+		//if start%100000 == 0 {
+		//	fmt.Println("at: ", start)
+		//}
+
+		price, err := decimal.NewFromString(current.scanGas)
+		if err != nil {
+			fmt.Println("error parse:", err)
+			break
+		}
+
+		counter.totalGas = counter.totalGas.Add(price.Div(div))
+
+		prev = current
+	}
+
+	//fmt.Println("Total gas:", totalGas.String())
+	//fmt.Println("Total gas:", totalGas.Div(decimal.NewFromInt(1e18)).String())
 	return nil
 }
