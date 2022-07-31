@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	rawdb2 "github.com/ethereum/go-ethereum/core/rawdb"
@@ -183,7 +184,7 @@ func cmdRun(c *cli.Context) error {
 			prices = append(prices, tx.GasPrice())
 		}
 		//fmt.Println("block:", block)
-		fmt.Printf("Proceeding block: %d\n", start)
+		//fmt.Printf("Proceeding block: %d\n", start)
 		//for _, tx := range block.Transactions() {
 		receipts := GetReceiptsByHash(db, block.Hash())
 		//if len(receipts) == 0 {
@@ -191,7 +192,13 @@ func cmdRun(c *cli.Context) error {
 		//}
 		for i, receipt := range receipts {
 			//fmt.Printf("r: %+v\n", receipt.CumulativeGasUsed)
-			_, err := buf.WriteString(fmt.Sprintf("%d %d %s\n", start, i, prices[i].Mul(prices[i], big.NewInt(int64(receipt.GasUsed))).String()))
+			_, err := buf.WriteString(
+				fmt.Sprintf("%d %d %s %s\n",
+					start,
+					i,
+					prices[i].Mul(prices[i], big.NewInt(int64(receipt.GasUsed))).String(),
+					time.Unix(block.Time().Int64(), 0).Format("2006-01-02"),
+				))
 			if err != nil {
 				panic(err)
 			}
