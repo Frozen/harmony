@@ -322,15 +322,13 @@ func cmdCalc2(c *cli.Context) error {
 	defer f.Close()
 
 	output := c.String("output")
-	f2, err := os.Create(output)
+	w, err := os.Create(output)
 	if err != nil {
 		panic(err)
 	}
-	defer f2.Close()
+	defer w.Close()
 
 	r := bufio.NewReader(f)
-	w := bufio.NewWriter(f2)
-	defer w.Flush()
 
 	div := decimal.NewFromInt(1e18)
 
@@ -341,7 +339,7 @@ func cmdCalc2(c *cli.Context) error {
 		dt          string
 	}
 	type counters struct {
-		blocksCount map[string]int
+		blocksCount map[string]uint64
 		totalGas    decimal.Decimal
 	}
 
@@ -350,12 +348,8 @@ func cmdCalc2(c *cli.Context) error {
 		current scan
 	)
 	counter := counters{
-		blocksCount: make(map[string]int),
+		blocksCount: make(map[string]uint64),
 	}
-
-	defer func() {
-		w.WriteString(fmt.Sprintf("%s %s %d\n", current.dt, counter.totalGas.String(), counter.blocksCount[current.dt]))
-	}()
 
 	for {
 		l, _, err := r.ReadLine()
@@ -371,10 +365,18 @@ func cmdCalc2(c *cli.Context) error {
 			break
 		}
 
-		counter.blocksCount[current.dt]++
+		if current.scanI == 0 {
+			if prev.blockNumber > 0 {
+				counter.blocksCount[current.dt] += current.blockNumber - prev.blockNumber
+			} else {
+				counter.blocksCount[current.dt]++
+			}
+		}
 
 		if prev.dt != current.dt && !counter.totalGas.IsZero() {
-			_, err := w.WriteString(fmt.Sprintf("%s %s %d\n", current.dt, counter.totalGas.String(), counter.blocksCount[prev.dt]))
+			s := fmt.Sprintf("%s %s %d\n", prev.dt, counter.totalGas.String(), counter.blocksCount[prev.dt])
+			fmt.Println(s)
+			_, err := w.WriteString(s)
 			if err != nil {
 				fmt.Println("error scan:", err)
 				break
@@ -400,6 +402,13 @@ func cmdCalc2(c *cli.Context) error {
 		counter.totalGas = counter.totalGas.Add(price.Div(div))
 
 		prev = current
+
+		//fmt.Println(counter)
+	}
+	_, err = w.WriteString(fmt.Sprintf("%s %s %d\n", current.dt, counter.totalGas.String(), counter.blocksCount[current.dt]))
+	fmt.Println("writed", err)
+	if err != nil {
+		panic(err)
 	}
 
 	//fmt.Println("Total gas:", totalGas.String())
