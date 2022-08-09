@@ -6,6 +6,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/ethdb/leveldb"
+	"github.com/harmony-one/harmony/core/rawdb"
 	tikvCommon "github.com/harmony-one/harmony/internal/tikv/common"
 	"github.com/harmony-one/harmony/internal/tikv/prefix"
 	"github.com/harmony-one/harmony/internal/tikv/remote"
@@ -46,7 +47,7 @@ func newExplorerLvlDB(dbPath string) (database, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &explorerDB{db}, nil
+	return &explorerDB{rawdb.NewPrometheusWrapper(db, "explorer_lvl_db")}, nil
 }
 
 // newExplorerTiKv new explorer storage using leveldb
@@ -57,9 +58,9 @@ func newExplorerTiKv(pdAddr []string, dbPath string, readOnly bool) (database, e
 		return nil, err
 	}
 	return &explorerDB{
-		db: tikvCommon.ToEthKeyValueStore(
+		db: rawdb.NewPrometheusWrapper(tikvCommon.ToEthKeyValueStore(
 			prefix.NewPrefixDatabase(prefixStr, db),
-		),
+		), "explorer_tikv_db"),
 	}, nil
 }
 

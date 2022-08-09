@@ -46,7 +46,7 @@ func NewLevelDBDatabase(file string, cache int, handles int, namespace string) (
 	if err != nil {
 		return nil, err
 	}
-	return rawdb.NewDatabase(corerawdb.NewPrometheusWrapper(db)), nil
+	return rawdb.NewDatabase(corerawdb.NewPrometheusWrapper(db, "lvl_db")), nil
 }
 
 // MemDBFactory is a memory-backed blockchain database factory.
@@ -74,8 +74,8 @@ func (f *LDBShardFactory) NewChainDB(shardID uint32) (ethdb.Database, error) {
 		return nil, err
 	}
 
-	return rawdb.NewDatabase(local_cache.NewLocalCacheDatabase(shard, local_cache.CacheConfig{
+	return rawdb.NewDatabase(corerawdb.NewPrometheusWrapper(local_cache.NewLocalCacheDatabase(shard, local_cache.CacheConfig{
 		CacheTime: time.Duration(f.CacheTime) * time.Minute,
 		CacheSize: f.CacheSize,
-	})), nil
+	}), "shard_db")), nil
 }

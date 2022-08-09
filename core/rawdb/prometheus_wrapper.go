@@ -22,25 +22,26 @@ var (
 			Name:      "leveldb_num_reads",
 			Help:      "number of reads",
 		},
-		[]string{"type"},
+		[]string{"name", "type"},
 	)
 )
 
 type PrometheusWrapper struct {
-	db ethdb.KeyValueStore
+	db   ethdb.KeyValueStore
+	name string
 }
 
-func NewPrometheusWrapper(db ethdb.KeyValueStore) *PrometheusWrapper {
-	return &PrometheusWrapper{db: db}
+func NewPrometheusWrapper(db ethdb.KeyValueStore, name string) *PrometheusWrapper {
+	return &PrometheusWrapper{db: db, name: name}
 }
 
 func (a PrometheusWrapper) Has(key []byte) (bool, error) {
-	numReadsVec.With(prometheus.Labels{"type": "has"}).Inc()
+	numReadsVec.With(prometheus.Labels{"type": "has", "name": a.name}).Inc()
 	return a.db.Has(key)
 }
 
 func (a PrometheusWrapper) Get(key []byte) ([]byte, error) {
-	numReadsVec.With(prometheus.Labels{"type": "get"}).Inc()
+	numReadsVec.With(prometheus.Labels{"type": "get", "name": a.name}).Inc()
 	return a.db.Get(key)
 }
 
