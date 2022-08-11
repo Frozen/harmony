@@ -93,10 +93,10 @@ var (
 )
 
 const (
-	bodyCacheLimit                     = 128
-	blockCacheLimit                    = 128
+	bodyCacheLimit                     = 2048
+	blockCacheLimit                    = 2048
 	receiptsCacheLimit                 = 32
-	maxFutureBlocks                    = 16
+	maxFutureBlocks                    = 256
 	maxTimeFutureBlocks                = 30
 	badBlockLimit                      = 10
 	triesInMemory                      = 128
@@ -105,13 +105,13 @@ const (
 	commitsCacheLimit                  = 10
 	epochCacheLimit                    = 10
 	randomnessCacheLimit               = 10
-	validatorCacheLimit                = 128
-	validatorStatsCacheLimit           = 128
+	validatorCacheLimit                = 1024
+	validatorStatsCacheLimit           = 1024
 	validatorListCacheLimit            = 10
-	validatorListByDelegatorCacheLimit = 128
+	validatorListByDelegatorCacheLimit = 1024
 	pendingCrossLinksCacheLimit        = 2
-	blockAccumulatorCacheLimit         = 64
-	maxPendingSlashes                  = 256
+	blockAccumulatorCacheLimit         = 256
+	maxPendingSlashes                  = 512
 	// BlockChainVersion ensures that an incompatible database forces a resync from scratch.
 	BlockChainVersion = 3
 	pendingCLCacheKey = "pendingCLs"
