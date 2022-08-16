@@ -227,22 +227,22 @@ func newBlockChainWithOptions(
 			TrieTimeLimit: 2 * time.Minute,
 		}
 	}
-	bodyCache, _ := lru.New(1)
-	bodyRLPCache, _ := lru.New(1)
-	receiptsCache, _ := lru.New(1)
-	blockCache, _ := lru.New(1)
-	futureBlocks, _ := lru.New(1)
-	badBlocks, _ := lru.New(1)
-	shardCache, _ := lru.New(1)
-	commitsCache, _ := lru.New(1)
-	epochCache, _ := lru.New(1)
-	randomnessCache, _ := lru.New(1)
-	validatorCache, _ := lru.New(1)
-	validatorStatsCache, _ := lru.New(1)
-	validatorListCache, _ := lru.New(1)
-	validatorListByDelegatorCache, _ := lru.New(1)
-	pendingCrossLinksCache, _ := lru.New(1)
-	blockAccumulatorCache, _ := lru.New(1)
+	bodyCache, _ := lru.New(bodyCacheLimit)
+	bodyRLPCache, _ := lru.New(bodyCacheLimit)
+	receiptsCache, _ := lru.New(receiptsCacheLimit)
+	blockCache, _ := lru.New(blockCacheLimit)
+	futureBlocks, _ := lru.New(maxFutureBlocks)
+	badBlocks, _ := lru.New(badBlockLimit)
+	shardCache, _ := lru.New(shardCacheLimit)
+	commitsCache, _ := lru.New(commitsCacheLimit)
+	epochCache, _ := lru.New(epochCacheLimit)
+	randomnessCache, _ := lru.New(randomnessCacheLimit)
+	validatorCache, _ := lru.New(validatorCacheLimit)
+	validatorStatsCache, _ := lru.New(validatorStatsCacheLimit)
+	validatorListCache, _ := lru.New(validatorListCacheLimit)
+	validatorListByDelegatorCache, _ := lru.New(validatorListByDelegatorCacheLimit)
+	pendingCrossLinksCache, _ := lru.New(pendingCrossLinksCacheLimit)
+	blockAccumulatorCache, _ := lru.New(blockAccumulatorCacheLimit)
 
 	bc := &BlockChainImpl{
 		chainConfig:                   chainConfig,
