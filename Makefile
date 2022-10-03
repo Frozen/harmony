@@ -166,3 +166,6 @@ calc:
 
 calc2:
 	go run cmd/txfees/main.go calc2 --path=${path} --output=${output}
+
+txs:
+	go run cmd/txfees/main.go txs --path=${path} --output=${output} -start=${start}
