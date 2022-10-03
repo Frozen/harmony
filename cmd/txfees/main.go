@@ -464,9 +464,9 @@ func blocktxs(c *cli.Context) error {
 
 	ctx, _ := signal.NotifyContext(context.Background(), os.Interrupt, os.Kill, syscall.SIGTERM)
 
-	start := c.Int64("block")
+	start := c.Int64("start")
 	if start == 0 {
-		return fmt.Errorf("block is required")
+		return fmt.Errorf("start is required")
 	}
 
 	buf := bufio.NewWriter(f)
