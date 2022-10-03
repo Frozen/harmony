@@ -118,6 +118,37 @@ func main() {
 				//},
 			},
 		},
+		{
+			Name:   "txs", // count transactions in block
+			Usage:  "txs",
+			Action: blocktxs,
+			Flags: []cli.Flag{
+				cli.StringFlag{
+					Name:  "path",
+					Value: "",
+					Usage: "Specify path to source file",
+					//Required: true,
+				},
+				cli.Int64Flag{
+					Name:  "start",
+					Value: 0,
+					Usage: "start from block",
+					//Required: true,
+				},
+				cli.StringFlag{
+					Name: "output",
+					//Value: 0,
+					Usage: "output",
+					//Required: true,
+				},
+				//cli.StringFlag{
+				//	Name:     argNameTargetPackage,
+				//	Value:    "",
+				//	Usage:    "Specify target package name",
+				//	Required: true,
+				//},
+			},
+		},
 	}
 
 	if err := a.Run(os.Args); err != nil {
@@ -413,5 +444,95 @@ func cmdCalc2(c *cli.Context) error {
 
 	//fmt.Println("Total gas:", totalGas.String())
 	//fmt.Println("Total gas:", totalGas.Div(decimal.NewFromInt(1e18)).String())
+	return nil
+}
+
+func blocktxs(c *cli.Context) error {
+	path := c.String("path")
+	if path == "" {
+		return fmt.Errorf("path is required")
+	}
+	//count := c.Int64("count")
+	db := getDB(path)
+	defer db.Close()
+
+	f, err := os.Create(c.String("output"))
+	if err != nil {
+		panic(err)
+	}
+	defer f.Close()
+
+	ctx, _ := signal.NotifyContext(context.Background(), os.Interrupt, os.Kill, syscall.SIGTERM)
+
+	start := c.Int64("block")
+	if start == 0 {
+		return fmt.Errorf("block is required")
+	}
+
+	buf := bufio.NewWriter(f)
+	defer buf.Flush()
+
+	previousTransactionsCount := 0
+
+	for {
+
+		//if count <= 0 {
+		//	fmt.Println("stop on count")
+		//	break
+		//}
+
+		select {
+		case <-ctx.Done():
+			fmt.Println("exit on ctx.Done()")
+			break
+		default:
+		}
+
+		block := GetBlockByNumber(db, uint64(start))
+		if block == nil {
+			fmt.Printf("block %d not found\n", start)
+			break
+		}
+		if cnt := len(block.Transactions()) + len(block.StakingTransactions()); cnt > previousTransactionsCount {
+			previousTransactionsCount = cnt
+			_, err := fmt.Fprintf(f, "%d %d (%d %d)\n", block.NumberU64(), len(block.Transactions())+len(block.StakingTransactions()), len(block.Transactions()), len(block.StakingTransactions()))
+			if err != nil {
+				return err
+			}
+		}
+		if start%10000 == 0 {
+			fmt.Println("block:", block)
+		}
+		//fmt.Printf("Proceeding block: %d\n", start)
+		//for _, tx := range block.Transactions() {
+
+		//if len(receipts) == 0 {
+		//	fmt.Println("no receipt for block: ", start)
+		//}
+		//if len(prices) > 0 {
+		//	receipts := GetReceiptsByHash(db, block.Hash())
+		//	for i, receipt := range receipts {
+		//		_, err := buf.WriteString(
+		//			fmt.Sprintf("%d %d %s %s\n",
+		//				start,
+		//				i,
+		//				prices[i].Mul(prices[i], big.NewInt(int64(receipt.GasUsed))).String(),
+		//				time.Unix(block.Time().Int64(), 0).Format("2006-01-02"),
+		//			))
+		//		if err != nil {
+		//			panic(err)
+		//		}
+		//		//fmt.Fprintf(f, "%d %d %d\n", start, i, receipt.CumulativeGasUsed)
+		//	}
+		//}
+		//}
+		//for _, tx := range block.StakingTransactions() {
+		//	receipts := GetReceiptsByHash(db, tx.Hash())
+		//	for _, receipt := range receipts {
+		//		fmt.Fprintf(f, "%d %s %d\n", block.NumberU64(), tx.Hash().Hex(), receipt.CumulativeGasUsed)
+		//	}
+		//}
+		start++
+	}
 	return nil
 }
