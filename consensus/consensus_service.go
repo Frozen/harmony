@@ -75,7 +75,7 @@ func (consensus *Consensus) signAndMarshalConsensusMessage(message *msg_pb.Messa
 func (consensus *Consensus) UpdatePublicKeys(pubKeys, allowlist []bls_cosi.PublicKeyWrapper) int64 {
 	// TODO: use mutex for updating public keys pointer. No need to lock on all these logic.
 	consensus.pubKeyLock.Lock()
-	consensus.Decider.UpdateParticipants(pubKeys, allowlist)
+	consensus.decider.UpdateParticipants(pubKeys, allowlist)
 	consensus.getLogger().Info().Msg("My Committee updated")
 	for i := range pubKeys {
 		consensus.getLogger().Info().
@@ -84,7 +84,7 @@ func (consensus *Consensus) UpdatePublicKeys(pubKeys, allowlist []bls_cosi.Publi
 			Msg("Member")
 	}
 
-	allKeys := consensus.Decider.Participants()
+	allKeys := consensus.decider.Participants()
 	if len(allKeys) != 0 {
 		consensus.LeaderPubKey = &allKeys[0]
 		consensus.getLogger().Info().
@@ -103,7 +103,7 @@ func (consensus *Consensus) UpdatePublicKeys(pubKeys, allowlist []bls_cosi.Publi
 	if !consensus.IsViewChangingMode() {
 		consensus.ResetViewChangeState()
 	}
-	return consensus.Decider.ParticipantsCount()
+	return consensus.decider.ParticipantsCount()
 }
 
 // NewFaker returns a faker consensus.
@@ -137,7 +137,7 @@ func (consensus *Consensus) UpdateBitmaps() {
 	consensus.getLogger().Debug().
 		Str("MessageType", consensus.phase.String()).
 		Msg("[UpdateBitmaps] Updating consensus bitmaps")
-	members := consensus.Decider.Participants()
+	members := consensus.decider.Participants()
 	prepareBitmap, _ := bls_cosi.NewMask(members, nil)
 	commitBitmap, _ := bls_cosi.NewMask(members, nil)
 	multiSigBitmap, _ := bls_cosi.NewMask(members, nil)
@@ -154,7 +154,7 @@ func (consensus *Consensus) ResetState() {
 
 	consensus.blockHash = [32]byte{}
 	consensus.block = []byte{}
-	consensus.Decider.ResetPrepareAndCommitVotes()
+	consensus.decider.ResetPrepareAndCommitVotes()
 	if consensus.prepareBitmap != nil {
 		consensus.prepareBitmap.Clear()
 	}
@@ -167,7 +167,7 @@ func (consensus *Consensus) ResetState() {
 
 // IsValidatorInCommittee returns whether the given validator BLS address is part of my committee
 func (consensus *Consensus) IsValidatorInCommittee(pubKey bls.SerializedPublicKey) bool {
-	return consensus.Decider.IndexOf(pubKey) != -1
+	return consensus.decider.IndexOf(pubKey) != -1
 }
 
 // SetMode sets the mode of consensus
@@ -247,7 +247,7 @@ func (consensus *Consensus) ReadSignatureBitmapPayload(
 	sigAndBitmapPayload := recvPayload[offset:]
 
 	// TODO(audit): keep a Mask in the Decider so it won't be reconstructed on the fly.
-	members := consensus.Decider.Participants()
+	members := consensus.decider.Participants()
 	return chain.ReadSignatureBitmapByPublicKeys(
 		sigAndBitmapPayload, members,
 	)
@@ -293,12 +293,12 @@ func (consensus *Consensus) UpdateConsensusInformation() Mode {
 	isFirstTimeStaking := consensus.Blockchain.Config().IsStaking(nextEpoch) &&
 		curHeader.IsLastBlockInEpoch() && !consensus.Blockchain.Config().IsStaking(curEpoch)
 	haventUpdatedDecider := consensus.Blockchain.Config().IsStaking(curEpoch) &&
-		consensus.Decider.Policy() != quorum.SuperMajorityStake
+		consensus.decider.Policy() != quorum.SuperMajorityStake
 
 	// Only happens once, the flip-over to a new Decider policy
 	if isFirstTimeStaking || haventUpdatedDecider {
 		decider := quorum.NewDecider(quorum.SuperMajorityStake, consensus.ShardID)
-		consensus.Decider = decider
+		consensus.decider = decider
 	}
 
 	var committeeToSet *shard.Committee
@@ -371,7 +371,7 @@ func (consensus *Consensus) UpdateConsensusInformation() Mode {
 	consensus.UpdatePublicKeys(pubKeys, shard.Schedule.InstanceForEpoch(nextEpoch).ExternalAllowlist())
 
 	// Update voters in the committee
-	if _, err := consensus.Decider.SetVoters(
+	if _, err := consensus.decider.SetVoters(
 		committeeToSet, epochToSet,
 	); err != nil {
 		consensus.getLogger().Error().
@@ -539,7 +539,7 @@ func (consensus *Consensus) selfCommit(payload []byte) error {
 			continue
 		}
 
-		if _, err := consensus.Decider.AddNewVote(
+		if _, err := consensus.decider.AddNewVote(
 			quorum.Commit,
 			[]*bls_cosi.PublicKeyWrapper{key.Pub},
 			key.Pri.SignHash(commitPayload),
@@ -560,7 +560,7 @@ func (consensus *Consensus) selfCommit(payload []byte) error {
 // NumSignaturesIncludedInBlock returns the number of signatures included in the block
 func (consensus *Consensus) NumSignaturesIncludedInBlock(block *types.Block) uint32 {
 	count := uint32(0)
-	members := consensus.Decider.Participants()
+	members := consensus.decider.Participants()
 	// TODO(audit): do not reconstruct the Mask
 	mask, err := bls.NewMask(members, nil)
 	if err != nil {

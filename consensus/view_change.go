@@ -200,7 +200,7 @@ func (consensus *Consensus) getNextLeaderKey(viewID uint64) *bls.PublicKeyWrappe
 			// it can still sync with other validators.
 			if curHeader.IsLastBlockInEpoch() {
 				consensus.getLogger().Info().Msg("[getNextLeaderKey] view change in the first block of new epoch")
-				lastLeaderPubKey = consensus.Decider.FirstParticipant(shard.Schedule.InstanceForEpoch(epoch))
+				lastLeaderPubKey = consensus.decider.FirstParticipant(shard.Schedule.InstanceForEpoch(epoch))
 			}
 		}
 	}
@@ -211,17 +211,17 @@ func (consensus *Consensus) getNextLeaderKey(viewID uint64) *bls.PublicKeyWrappe
 		Uint64("newViewID", viewID).
 		Uint64("myCurBlockViewID", consensus.GetCurBlockViewID()).
 		Msg("[getNextLeaderKey] got leaderPubKey from coinbase")
-	// wasFound, next := consensus.Decider.NthNext(lastLeaderPubKey, gap)
+	// wasFound, next := consensus.decider.NthNext(lastLeaderPubKey, gap)
 	// FIXME: rotate leader on harmony nodes only before fully externalization
 	var wasFound bool
 	var next *bls.PublicKeyWrapper
 	if consensus.Blockchain != nil && consensus.Blockchain.Config().IsAllowlistEpoch(epoch) {
-		wasFound, next = consensus.Decider.NthNextHmyExt(
+		wasFound, next = consensus.decider.NthNextHmyExt(
 			shard.Schedule.InstanceForEpoch(epoch),
 			lastLeaderPubKey,
 			gap)
 	} else {
-		wasFound, next = consensus.Decider.NthNextHmy(
+		wasFound, next = consensus.decider.NthNextHmy(
 			shard.Schedule.InstanceForEpoch(epoch),
 			lastLeaderPubKey,
 			gap)
@@ -280,7 +280,7 @@ func (consensus *Consensus) startViewChange() {
 	defer consensus.consensusTimeout[timeoutViewChange].Start()
 
 	// update the dictionary key if the viewID is first time received
-	members := consensus.Decider.Participants()
+	members := consensus.decider.Participants()
 	consensus.vc.AddViewIDKeyIfNotExist(nextViewID, members)
 
 	// init my own payload
@@ -386,10 +386,10 @@ func (consensus *Consensus) onViewChange(recvMsg *FBFTMessage) {
 		return
 	}
 
-	if consensus.Decider.IsQuorumAchievedByMask(consensus.vc.GetViewIDBitmap(recvMsg.ViewID)) {
+	if consensus.decider.IsQuorumAchievedByMask(consensus.vc.GetViewIDBitmap(recvMsg.ViewID)) {
 		consensus.getLogger().Info().
-			Int64("have", consensus.Decider.SignersCount(quorum.ViewChange)).
-			Int64("need", consensus.Decider.TwoThirdsSignersCount()).
+			Int64("have", consensus.decider.SignersCount(quorum.ViewChange)).
+			Int64("need", consensus.decider.TwoThirdsSignersCount()).
 			Interface("SenderPubkeys", recvMsg.SenderPubkeys).
 			Str("newLeaderKey", newLeaderKey.Bytes.Hex()).
 			Msg("[onViewChange] Received Enough View Change Messages")
@@ -404,7 +404,7 @@ func (consensus *Consensus) onViewChange(recvMsg *FBFTMessage) {
 	senderKey := recvMsg.SenderPubkeys[0]
 
 	// update the dictionary key if the viewID is first time received
-	members := consensus.Decider.Participants()
+	members := consensus.decider.Participants()
 	consensus.vc.AddViewIDKeyIfNotExist(recvMsg.ViewID, members)
 
 	// do it once only per viewID/Leader
@@ -417,7 +417,7 @@ func (consensus *Consensus) onViewChange(recvMsg *FBFTMessage) {
 		return
 	}
 
-	err = consensus.vc.ProcessViewChangeMsg(consensus.FBFTLog, consensus.Decider, recvMsg)
+	err = consensus.vc.ProcessViewChangeMsg(consensus.FBFTLog, consensus.decider, recvMsg)
 	if err != nil {
 		consensus.getLogger().Error().Err(err).
 			Uint64("viewID", recvMsg.ViewID).
@@ -428,7 +428,7 @@ func (consensus *Consensus) onViewChange(recvMsg *FBFTMessage) {
 	}
 
 	// received enough view change messages, change state to normal consensus
-	if consensus.Decider.IsQuorumAchievedByMask(consensus.vc.GetViewIDBitmap(recvMsg.ViewID)) && consensus.IsViewChangingMode() {
+	if consensus.decider.IsQuorumAchievedByMask(consensus.vc.GetViewIDBitmap(recvMsg.ViewID)) && consensus.IsViewChangingMode() {
 		// no previous prepared message, go straight to normal mode
 		// and start proposing new block
 		if consensus.vc.IsM1PayloadEmpty() {
@@ -498,7 +498,7 @@ func (consensus *Consensus) onNewView(recvMsg *FBFTMessage) {
 	}
 
 	m3Mask := recvMsg.M3Bitmap
-	if !consensus.Decider.IsQuorumAchievedByMask(m3Mask) {
+	if !consensus.decider.IsQuorumAchievedByMask(m3Mask) {
 		consensus.getLogger().Warn().
 			Msgf("[onNewView] Quorum Not achieved")
 		return
@@ -582,5 +582,5 @@ func (consensus *Consensus) ResetViewChangeState() {
 		Msg("[ResetViewChangeState] Resetting view change state")
 	consensus.current.SetMode(Normal)
 	consensus.vc.Reset()
-	consensus.Decider.ResetViewChangeVotes()
+	consensus.decider.ResetViewChangeVotes()
 }

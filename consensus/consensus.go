@@ -42,7 +42,7 @@ type VerifyBlockFunc func(*types.Block) error
 
 // Consensus is the main struct with all states and data related to consensus process.
 type Consensus struct {
-	Decider quorum.Decider
+	decider quorum.Decider
 	// FBFTLog stores the pbft messages and blocks during FBFT process
 	FBFTLog *FBFTLog
 	// phase: different phase of FBFT protocol: pre-prepare, prepare, commit, finish etc
@@ -137,6 +137,10 @@ type Consensus struct {
 	dHelper *downloadHelper
 }
 
+func (consensus *Consensus) Decider() quorum.Decider {
+	return consensus.decider
+}
+
 // VerifyBlock is a function used to verify the block and keep trace of verified blocks
 func (consensus *Consensus) VerifyBlock(block *types.Block) error {
 	if !consensus.FBFTLog.IsBlockVerified(block.Hash()) {
@@ -161,7 +165,7 @@ func (consensus *Consensus) BlocksNotSynchronized() {
 
 // VdfSeedSize returns the number of VRFs for VDF computation
 func (consensus *Consensus) VdfSeedSize() int {
-	return int(consensus.Decider.ParticipantsCount()) * 2 / 3
+	return int(consensus.decider.ParticipantsCount()) * 2 / 3
 }
 
 // GetPublicKeys returns the public keys
@@ -214,7 +218,7 @@ func New(
 	Decider quorum.Decider,
 ) (*Consensus, error) {
 	consensus := Consensus{}
-	consensus.Decider = Decider
+	consensus.decider = Decider
 	consensus.host = host
 	consensus.msgSender = NewMessageSender(host)
 	consensus.BlockNumLowChan = make(chan struct{}, 1)

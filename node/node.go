@@ -625,7 +625,7 @@ func (node *Node) validateShardBoundMessage(
 			return nil, nil, true, errors.WithStack(shard.ErrValidNotInCommittee)
 		}
 	} else {
-		count := node.Consensus.Decider.ParticipantsCount()
+		count := node.Consensus.Decider().ParticipantsCount()
 		if (count+7)>>3 != int64(len(senderBitmap)) {
 			nodeConsensusMessageCounterVec.With(prometheus.Labels{"type": "invalid_participant_count"}).Inc()
 			return nil, nil, true, errors.WithStack(errWrongSizeOfBitmap)

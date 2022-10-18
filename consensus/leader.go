@@ -65,7 +65,7 @@ func (consensus *Consensus) announce(block *types.Block) {
 			continue
 		}
 
-		if _, err := consensus.Decider.AddNewVote(
+		if _, err := consensus.decider.AddNewVote(
 			quorum.Prepare,
 			[]*bls.PublicKeyWrapper{key.Pub},
 			key.Pri.SignHash(consensus.blockHash[:]),
@@ -119,7 +119,7 @@ func (consensus *Consensus) onPrepare(recvMsg *FBFTMessage) {
 	prepareBitmap := consensus.prepareBitmap
 	// proceed only when the message is not received before
 	for _, signer := range recvMsg.SenderPubkeys {
-		signed := consensus.Decider.ReadBallot(quorum.Prepare, signer.Bytes)
+		signed := consensus.decider.ReadBallot(quorum.Prepare, signer.Bytes)
 		if signed != nil {
 			consensus.getLogger().Debug().
 				Str("validatorPubKey", signer.Bytes.Hex()).
@@ -128,14 +128,14 @@ func (consensus *Consensus) onPrepare(recvMsg *FBFTMessage) {
 		}
 	}
 
-	if consensus.Decider.IsQuorumAchieved(quorum.Prepare) {
+	if consensus.decider.IsQuorumAchieved(quorum.Prepare) {
 		// already have enough signatures
 		consensus.getLogger().Debug().
 			Interface("validatorPubKeys", recvMsg.SenderPubkeys).
 			Msg("[OnPrepare] Received Additional Prepare Message")
 		return
 	}
-	signerCount := consensus.Decider.SignersCount(quorum.Prepare)
+	signerCount := consensus.decider.SignersCount(quorum.Prepare)
 	//// Read - End
 
 	// Check BLS signature for the multi-sig
@@ -162,11 +162,11 @@ func (consensus *Consensus) onPrepare(recvMsg *FBFTMessage) {
 
 	consensus.getLogger().Debug().
 		Int64("NumReceivedSoFar", signerCount).
-		Int64("PublicKeys", consensus.Decider.ParticipantsCount()).
+		Int64("PublicKeys", consensus.decider.ParticipantsCount()).
 		Msg("[OnPrepare] Received New Prepare Signature")
 
 	//// Write - Start
-	if _, err := consensus.Decider.AddNewVote(
+	if _, err := consensus.decider.AddNewVote(
 		quorum.Prepare, recvMsg.SenderPubkeys,
 		&sign, recvMsg.BlockHash,
 		recvMsg.BlockNum, recvMsg.ViewID,
@@ -182,7 +182,7 @@ func (consensus *Consensus) onPrepare(recvMsg *FBFTMessage) {
 	//// Write - End
 
 	//// Read - Start
-	if consensus.Decider.IsQuorumAchieved(quorum.Prepare) {
+	if consensus.decider.IsQuorumAchieved(quorum.Prepare) {
 		// NOTE Let it handle its own logs
 		if err := consensus.didReachPrepareQuorum(); err != nil {
 			return
@@ -201,7 +201,7 @@ func (consensus *Consensus) onCommit(recvMsg *FBFTMessage) {
 	}
 	// proceed only when the message is not received before
 	for _, signer := range recvMsg.SenderPubkeys {
-		signed := consensus.Decider.ReadBallot(quorum.Commit, signer.Bytes)
+		signed := consensus.decider.ReadBallot(quorum.Commit, signer.Bytes)
 		if signed != nil {
 			consensus.getLogger().Debug().
 				Str("validatorPubKey", signer.Bytes.Hex()).
@@ -213,9 +213,9 @@ func (consensus *Consensus) onCommit(recvMsg *FBFTMessage) {
 	commitBitmap := consensus.commitBitmap
 
 	// has to be called before verifying signature
-	quorumWasMet := consensus.Decider.IsQuorumAchieved(quorum.Commit)
+	quorumWasMet := consensus.decider.IsQuorumAchieved(quorum.Commit)
 
-	signerCount := consensus.Decider.SignersCount(quorum.Commit)
+	signerCount := consensus.decider.SignersCount(quorum.Commit)
 	//// Read - End
 
 	// Verify the signature on commitPayload is correct
@@ -269,7 +269,7 @@ func (consensus *Consensus) onCommit(recvMsg *FBFTMessage) {
 			return
 		}
 	*/
-	if _, err := consensus.Decider.AddNewVote(
+	if _, err := consensus.decider.AddNewVote(
 		quorum.Commit, recvMsg.SenderPubkeys,
 		&sign, recvMsg.BlockHash,
 		recvMsg.BlockNum, recvMsg.ViewID,
@@ -287,7 +287,7 @@ func (consensus *Consensus) onCommit(recvMsg *FBFTMessage) {
 	//// Read - Start
 	viewID := consensus.GetCurBlockViewID()
 
-	if consensus.Decider.IsAllSigsCollected() {
+	if consensus.decider.IsAllSigsCollected() {
 		logger.Info().Msg("[OnCommit] 100% Enough commits received")
 		consensus.finalCommit()
 
@@ -295,7 +295,7 @@ func (consensus *Consensus) onCommit(recvMsg *FBFTMessage) {
 		return
 	}
 
-	quorumIsMet := consensus.Decider.IsQuorumAchieved(quorum.Commit)
+	quorumIsMet := consensus.decider.IsQuorumAchieved(quorum.Commit)
 	//// Read - End
 
 	if !quorumWasMet && quorumIsMet {

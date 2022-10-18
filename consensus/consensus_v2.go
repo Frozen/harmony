@@ -83,7 +83,7 @@ func (consensus *Consensus) HandleMessageUpdate(ctx context.Context, msg *msg_pb
 	case t == msg_pb.MessageType_VIEWCHANGE:
 		fbftMsg, err = ParseViewChangeMessage(msg)
 	case t == msg_pb.MessageType_NEWVIEW:
-		members := consensus.Decider.Participants()
+		members := consensus.decider.Participants()
 		fbftMsg, err = ParseNewViewMessage(msg, members)
 	default:
 		fbftMsg, err = consensus.ParseFBFTMessage(msg)
@@ -130,7 +130,7 @@ func (consensus *Consensus) HandleMessageUpdate(ctx context.Context, msg *msg_pb
 }
 
 func (consensus *Consensus) finalCommit() {
-	numCommits := consensus.Decider.SignersCount(quorum.Commit)
+	numCommits := consensus.decider.SignersCount(quorum.Commit)
 
 	consensus.getLogger().Info().
 		Int64("NumCommits", numCommits).
@@ -416,7 +416,7 @@ func (consensus *Consensus) Start(
 					Int("numTxs", len(newBlock.Transactions())).
 					Int("numStakingTxs", len(newBlock.StakingTransactions())).
 					Time("startTime", startTime).
-					Int64("publicKeys", consensus.Decider.ParticipantsCount()).
+					Int64("publicKeys", consensus.decider.ParticipantsCount()).
 					Msg("[ConsensusMainLoop] STARTING CONSENSUS")
 				consensus.announce(newBlock)
 			case <-stopChan:
