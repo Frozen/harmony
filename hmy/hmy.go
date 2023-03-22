@@ -13,7 +13,6 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/harmony-one/harmony/api/proto"
 	"github.com/harmony-one/harmony/block"
-	"github.com/harmony-one/harmony/consensus"
 	"github.com/harmony-one/harmony/core"
 	"github.com/harmony-one/harmony/core/state"
 	"github.com/harmony-one/harmony/core/types"
@@ -45,12 +44,21 @@ var (
 	ErrFinalizedTransaction = errors.New("transaction already finalized")
 )
 
+type consensus interface {
+	// Blockchain returns the blockchain of the consensus engine.
+	Blockchain() core.BlockChain
+	// EpochChain returns the epoch blockchain of the consensus engine.
+	EpochChain() core.BlockChain
+	// ShardID returns the shard ID of the consensus engine.
+	ShardID() uint32
+}
+
 // Harmony implements the Harmony full node service.
 type Harmony struct {
 	// Channel for shutting down the service
 	ShutdownChan  chan bool                      // Channel for shutting down the Harmony
 	BloomRequests chan chan *bloombits.Retrieval // Channel receiving bloom data retrieval requests
-	consensus     *consensus.Consensus
+	consensus     consensus
 	TxPool        *core.TxPool
 	CxPool        *core.CxPool // CxPool is used to store the blockHashes of blocks containing cx receipts to be sent
 	// DB interfaces
@@ -120,7 +128,7 @@ type NodeAPI interface {
 // New creates a new Harmony object (including the
 // initialisation of the common Harmony object)
 func New(
-	nodeAPI NodeAPI, txPool *core.TxPool, cxPool *core.CxPool, consensus *consensus.Consensus,
+	nodeAPI NodeAPI, txPool *core.TxPool, cxPool *core.CxPool, consensus consensus,
 ) *Harmony {
 	leaderCache, _ := lru.New(leaderCacheSize)
 	undelegationPayoutsCache, _ := lru.New(undelegationPayoutsCacheSize)
@@ -228,7 +236,7 @@ func (hmy *Harmony) GetNodeMetadata() commonRPC.NodeMetadata {
 		NetworkType:     string(cfg.GetNetworkType()),
 		ChainConfig:     *hmy.ChainConfig(),
 		IsLeader:        hmy.IsLeader(),
-		ShardID:         hmy.consensus.ShardID(),
+		ShardID:         hmy.ShardID(),
 		CurrentBlockNum: header.Number().Uint64(),
 		CurrentEpoch:    header.Epoch().Uint64(),
 		BlocksPerEpoch:  blockEpoch,
@@ -247,13 +255,13 @@ func (hmy *Harmony) GetNodeMetadata() commonRPC.NodeMetadata {
 // GetEVM returns a new EVM entity
 func (hmy *Harmony) GetEVM(ctx context.Context, msg core.Message, state *state.DB, header *block.Header) (*vm.EVM, error) {
 	state.SetBalance(msg.From(), math.MaxBig256)
-	vmCtx := core.NewEVMContext(msg, header, hmy.consensus.Blockchain(), nil)
-	return vm.NewEVM(vmCtx, state, hmy.consensus.Blockchain().Config(), *hmy.consensus.Blockchain().GetVMConfig()), nil
+	vmCtx := core.NewEVMContext(msg, header, hmy.BlockChain(), nil)
+	return vm.NewEVM(vmCtx, state, hmy.BlockChain().Config(), *hmy.BlockChain().GetVMConfig()), nil
 }
 
 // ChainDb ..
 func (hmy *Harmony) ChainDb() ethdb.Database {
-	return hmy.consensus.Blockchain().ChainDb()
+	return hmy.BlockChain().ChainDb()
 }
 
 // EventMux ..

@@ -29,7 +29,7 @@ func (s *ConstructAPI) ConstructionHash(
 	}
 	if tx.ShardID() != s.hmy.ShardID() {
 		return nil, common.NewError(common.InvalidTransactionConstructionError, map[string]interface{}{
-			"message": fmt.Sprintf("transaction is for shard %v != shard %v", tx.ShardID(), s.hmy.ShardID),
+			"message": fmt.Sprintf("transaction is for shard %v != shard %v", tx.ShardID(), s.hmy.ShardID()),
 		})
 	}
 	return &types.TransactionIdentifierResponse{
@@ -55,7 +55,7 @@ func (s *ConstructAPI) ConstructionSubmit(
 	}
 	if tx.ShardID() != s.hmy.ShardID() {
 		return nil, common.NewError(common.StakingTransactionSubmissionError, map[string]interface{}{
-			"message": fmt.Sprintf("transaction is for shard %v != shard %v", tx.ShardID(), s.hmy.ShardID),
+			"message": fmt.Sprintf("transaction is for shard %v != shard %v", tx.ShardID(), s.hmy.ShardID()),
 		})
 	}
 

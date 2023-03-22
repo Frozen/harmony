@@ -63,7 +63,7 @@ func (s *ConstructAPI) ConstructionPreprocess(
 	}
 	if txMetadata.FromShardID != nil && *txMetadata.FromShardID != s.hmy.ShardID() {
 		return nil, common.NewError(common.InvalidTransactionConstructionError, map[string]interface{}{
-			"message": fmt.Sprintf("expect from shard ID to be %v", s.hmy.ShardID),
+			"message": fmt.Sprintf("expect from shard ID to be %v", s.hmy.ShardID()),
 		})
 	}
 

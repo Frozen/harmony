@@ -308,7 +308,7 @@ func (s *ConstructAPI) ConstructionPayloads(
 	if metadata.Transaction.FromShardID != nil && *metadata.Transaction.FromShardID != s.hmy.ShardID() {
 		return nil, common.NewError(common.InvalidTransactionConstructionError, map[string]interface{}{
 			"message": fmt.Sprintf("transaction is for shard %v != shard %v",
-				*metadata.Transaction.FromShardID, s.hmy.ShardID,
+				*metadata.Transaction.FromShardID, s.hmy.ShardID(),
 			),
 		})
 	}
@@ -383,7 +383,7 @@ func (s *ConstructAPI) ConstructionCombine(
 	}
 	if tx.ShardID() != s.hmy.ShardID() {
 		return nil, common.NewError(common.InvalidTransactionConstructionError, map[string]interface{}{
-			"message": fmt.Sprintf("transaction is for shard %v != shard %v", tx.ShardID(), s.hmy.ShardID),
+			"message": fmt.Sprintf("transaction is for shard %v != shard %v", tx.ShardID(), s.hmy.ShardID()),
 		})
 	}
 
