@@ -388,7 +388,7 @@ func (node *Node) AddPendingReceipts(receipts *types.CXReceiptsProof) {
 	}
 
 	// cross-shard receipt should not be coming from our shard
-	if s := node.Consensus.ShardID; s == shardID {
+	if s := node.Consensus.ShardID(); s == shardID {
 		utils.Logger().Info().
 			Uint32("my-shard", s).
 			Uint32("receipt-shard", shardID).
@@ -601,7 +601,7 @@ func (node *Node) validateShardBoundMessage(
 	senderBitmap := []byte{}
 
 	if maybeCon != nil {
-		if maybeCon.ShardId != node.Consensus.ShardID {
+		if maybeCon.ShardId != node.Consensus.ShardID() {
 			nodeConsensusMessageCounterVec.With(prometheus.Labels{"type": "invalid_shard"}).Inc()
 			return nil, nil, true, errors.WithStack(errWrongShardID)
 		}
@@ -615,7 +615,7 @@ func (node *Node) validateShardBoundMessage(
 			return nil, nil, true, errors.WithStack(errViewIDTooOld)
 		}
 	} else if maybeVC != nil {
-		if maybeVC.ShardId != node.Consensus.ShardID {
+		if maybeVC.ShardId != node.Consensus.ShardID() {
 			nodeConsensusMessageCounterVec.With(prometheus.Labels{"type": "invalid_shard"}).Inc()
 			return nil, nil, true, errors.WithStack(errWrongShardID)
 		}
@@ -700,7 +700,7 @@ func (node *Node) StartPubSub() error {
 
 	utils.Logger().Debug().
 		Interface("topics-ended-up-with", groups).
-		Uint32("shard-id", node.Consensus.ShardID).
+		Uint32("shard-id", node.Consensus.ShardID()).
 		Msg("starting with these topics")
 
 	if !node.NodeConfig.IsOffline {
@@ -1031,7 +1031,7 @@ func New(
 
 	// Get the node config that's created in the harmony.go program.
 	if consensusObj != nil {
-		node.NodeConfig = nodeconfig.GetShardConfig(consensusObj.ShardID)
+		node.NodeConfig = nodeconfig.GetShardConfig(consensusObj.ShardID())
 	} else {
 		node.NodeConfig = nodeconfig.GetDefaultConfig()
 	}
@@ -1195,7 +1195,7 @@ func (node *Node) InitConsensusWithValidators() (err error) {
 			"[InitConsensusWithValidators] consenus is nil; Cannot figure out shardID",
 		)
 	}
-	shardID := node.Consensus.ShardID
+	shardID := node.Consensus.ShardID()
 	currentBlock := node.Blockchain().CurrentBlock()
 	blockNum := currentBlock.NumberU64()
 	node.Consensus.SetMode(consensus.Listening)
@@ -1327,7 +1327,7 @@ func (node *Node) populateSelfAddresses(epoch *big.Int) {
 	node.KeysToAddrs = map[string]common.Address{}
 	node.keysToAddrsEpoch = epoch
 
-	shardID := node.Consensus.ShardID
+	shardID := node.Consensus.ShardID()
 	shardState, err := node.Consensus.Blockchain().ReadShardState(epoch)
 	if err != nil {
 		utils.Logger().Error().Err(err).
@@ -1406,7 +1406,7 @@ func (node *Node) GetAddresses(epoch *big.Int) map[string]common.Address {
 
 // IsRunningBeaconChain returns whether the node is running on beacon chain.
 func (node *Node) IsRunningBeaconChain() bool {
-	return node.NodeConfig.ShardID == shard.BeaconChainShardID
+	return node.Consensus.ShardID() == shard.BeaconChainShardID
 }
 
 // syncFromTiKVWriter used for tikv mode, subscribe data from tikv writer

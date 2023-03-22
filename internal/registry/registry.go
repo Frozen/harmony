@@ -10,6 +10,7 @@ import (
 type Registry struct {
 	mu         sync.Mutex
 	blockchain core.BlockChain
+	epochchain core.BlockChain
 }
 
 // New creates a new registry.
@@ -32,4 +33,21 @@ func (r *Registry) GetBlockchain() core.BlockChain {
 	defer r.mu.Unlock()
 
 	return r.blockchain
+}
+
+// SetEpochChain sets the epochchain to registry.
+func (r *Registry) SetEpochChain(ec core.BlockChain) *Registry {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.epochchain = ec
+	return r
+}
+
+// GetEpochChain gets the epochchain from registry.
+func (r *Registry) GetEpochChain() core.BlockChain {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	return r.epochchain
 }

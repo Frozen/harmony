@@ -15,7 +15,7 @@ import (
 func (s *ConstructAPI) ConstructionHash(
 	ctx context.Context, request *types.ConstructionHashRequest,
 ) (*types.TransactionIdentifierResponse, *types.Error) {
-	if err := assertValidNetworkIdentifier(request.NetworkIdentifier, s.hmy.ShardID); err != nil {
+	if err := assertValidNetworkIdentifier(request.NetworkIdentifier, s.hmy.ShardID()); err != nil {
 		return nil, err
 	}
 	_, tx, rosettaError := unpackWrappedTransactionFromString(request.SignedTransaction, true)
@@ -27,7 +27,7 @@ func (s *ConstructAPI) ConstructionHash(
 			"message": "nil transaction",
 		})
 	}
-	if tx.ShardID() != s.hmy.ShardID {
+	if tx.ShardID() != s.hmy.ShardID() {
 		return nil, common.NewError(common.InvalidTransactionConstructionError, map[string]interface{}{
 			"message": fmt.Sprintf("transaction is for shard %v != shard %v", tx.ShardID(), s.hmy.ShardID),
 		})
@@ -41,7 +41,7 @@ func (s *ConstructAPI) ConstructionHash(
 func (s *ConstructAPI) ConstructionSubmit(
 	ctx context.Context, request *types.ConstructionSubmitRequest,
 ) (*types.TransactionIdentifierResponse, *types.Error) {
-	if err := assertValidNetworkIdentifier(request.NetworkIdentifier, s.hmy.ShardID); err != nil {
+	if err := assertValidNetworkIdentifier(request.NetworkIdentifier, s.hmy.ShardID()); err != nil {
 		return nil, err
 	}
 	wrappedTransaction, tx, rosettaError := unpackWrappedTransactionFromString(request.SignedTransaction, true)
@@ -53,7 +53,7 @@ func (s *ConstructAPI) ConstructionSubmit(
 			"message": "nil wrapped transaction or nil unwrapped transaction",
 		})
 	}
-	if tx.ShardID() != s.hmy.ShardID {
+	if tx.ShardID() != s.hmy.ShardID() {
 		return nil, common.NewError(common.StakingTransactionSubmissionError, map[string]interface{}{
 			"message": fmt.Sprintf("transaction is for shard %v != shard %v", tx.ShardID(), s.hmy.ShardID),
 		})

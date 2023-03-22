@@ -203,7 +203,7 @@ func (consensus *Consensus) getNextLeaderKey(viewID uint64) *bls.PublicKeyWrappe
 	var wasFound bool
 	var next *bls.PublicKeyWrapper
 	if blockchain != nil && blockchain.Config().IsLeaderRotation(epoch) {
-		if consensus.ShardID == shard.BeaconChainShardID {
+		if consensus.ShardID() == shard.BeaconChainShardID {
 			wasFound, next = consensus.Decider.NthNextHmy(
 				shard.Schedule.InstanceForEpoch(epoch),
 				lastLeaderPubKey,
@@ -293,7 +293,7 @@ func (consensus *Consensus) startViewChange() {
 			consensus.getBlockNum(),
 			msg_pb.MessageType_VIEWCHANGE,
 			[]nodeconfig.GroupID{
-				nodeconfig.NewGroupIDByShardID(nodeconfig.ShardID(consensus.ShardID))},
+				nodeconfig.NewGroupIDByShardID(nodeconfig.ShardID(consensus.ShardID()))},
 			p2p.ConstructMessage(msgToSend),
 		); err != nil {
 			consensus.getLogger().Err(err).
@@ -319,7 +319,7 @@ func (consensus *Consensus) startNewView(viewID uint64, newLeaderPriKey *bls.Pri
 		consensus.getBlockNum(),
 		msg_pb.MessageType_NEWVIEW,
 		[]nodeconfig.GroupID{
-			nodeconfig.NewGroupIDByShardID(nodeconfig.ShardID(consensus.ShardID))},
+			nodeconfig.NewGroupIDByShardID(nodeconfig.ShardID(consensus.ShardID()))},
 		p2p.ConstructMessage(msgToSend),
 	); err != nil {
 		return errors.New("failed to send out the NewView message")

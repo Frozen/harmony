@@ -50,7 +50,7 @@ func (m *ConstructMetadataOptions) UnmarshalFromInterface(metadata interface{}) 
 func (s *ConstructAPI) ConstructionPreprocess(
 	ctx context.Context, request *types.ConstructionPreprocessRequest,
 ) (*types.ConstructionPreprocessResponse, *types.Error) {
-	if err := assertValidNetworkIdentifier(request.NetworkIdentifier, s.hmy.ShardID); err != nil {
+	if err := assertValidNetworkIdentifier(request.NetworkIdentifier, s.hmy.ShardID()); err != nil {
 		return nil, err
 	}
 	txMetadata := &TransactionMetadata{}
@@ -61,7 +61,7 @@ func (s *ConstructAPI) ConstructionPreprocess(
 			})
 		}
 	}
-	if txMetadata.FromShardID != nil && *txMetadata.FromShardID != s.hmy.ShardID {
+	if txMetadata.FromShardID != nil && *txMetadata.FromShardID != s.hmy.ShardID() {
 		return nil, common.NewError(common.InvalidTransactionConstructionError, map[string]interface{}{
 			"message": fmt.Sprintf("expect from shard ID to be %v", s.hmy.ShardID),
 		})
@@ -162,7 +162,7 @@ func (m *ConstructMetadata) UnmarshalFromInterface(blockArgs interface{}) error 
 func (s *ConstructAPI) ConstructionMetadata(
 	ctx context.Context, request *types.ConstructionMetadataRequest,
 ) (*types.ConstructionMetadataResponse, *types.Error) {
-	if err := assertValidNetworkIdentifier(request.NetworkIdentifier, s.hmy.ShardID); err != nil {
+	if err := assertValidNetworkIdentifier(request.NetworkIdentifier, s.hmy.ShardID()); err != nil {
 		return nil, err
 	}
 	options := &ConstructMetadataOptions{}
@@ -196,7 +196,7 @@ func (s *ConstructAPI) ConstructionMetadata(
 	}
 
 	if options.OperationType == common.NativeCrossShardTransferOperation &&
-		!s.hmy.BlockChain.Config().AcceptsCrossTx(currBlock.Epoch()) {
+		!s.hmy.BlockChain().Config().AcceptsCrossTx(currBlock.Epoch()) {
 		return nil, common.NewError(common.InvalidTransactionConstructionError, map[string]interface{}{
 			"message": "cross-shard transaction is not accepted yet",
 		})

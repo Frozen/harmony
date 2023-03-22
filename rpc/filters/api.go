@@ -37,6 +37,10 @@ type filter struct {
 	s        *Subscription // associated subscription in event system
 }
 
+type ShardGetter interface {
+	ShardID() uint32
+}
+
 // PublicFilterAPI offers support to create and manage filters. This will allow external clients to retrieve various
 // information related to the Ethereum protocol such als blocks, transactions and logs.
 type PublicFilterAPI struct {
@@ -46,11 +50,11 @@ type PublicFilterAPI struct {
 	filtersMu sync.Mutex
 	filters   map[rpc.ID]*filter
 	namespace string
-	shardID   uint32
+	shardID   ShardGetter
 }
 
 // NewPublicFilterAPI returns a new PublicFilterAPI instance.
-func NewPublicFilterAPI(backend Backend, lightMode bool, namespace string, shardID uint32) rpc.API {
+func NewPublicFilterAPI(backend Backend, lightMode bool, namespace string, shardID ShardGetter) rpc.API {
 	api := &PublicFilterAPI{
 		backend:   backend,
 		events:    NewEventSystem(backend, lightMode, namespace == "eth"),
@@ -356,7 +360,7 @@ func (api *PublicFilterAPI) NewFilter(crit FilterCriteria) (rpc.ID, error) {
 	defer hmy_rpc.DoRPCRequestDuration(hmy_rpc.NewFilter, timer)
 
 	id := rpc.NewID()
-	if err := redis_helper.PublishNewFilterLogEvent(api.shardID, api.namespace, string(id), ethereum.FilterQuery(crit)); err != nil {
+	if err := redis_helper.PublishNewFilterLogEvent(api.shardID.ShardID(), api.namespace, string(id), ethereum.FilterQuery(crit)); err != nil {
 		return "", fmt.Errorf("sending filter logs to other readers: %w", err)
 	}
 
@@ -403,10 +407,10 @@ func (api *PublicFilterAPI) createFilter(crit ethereum.FilterQuery, customId rpc
 }
 
 func (api *PublicFilterAPI) SyncNewFilterFromOtherReaders() {
-	go redis_helper.SubscribeNewFilterLogEvent(api.shardID, api.namespace, func(id string, crit ethereum.FilterQuery) {
+	go redis_helper.SubscribeNewFilterLogEvent(api.shardID.ShardID(), api.namespace, func(id string, crit ethereum.FilterQuery) {
 		if _, err := api.createFilter(crit, rpc.ID(id)); err != nil {
 			utils.Logger().Warn().
-				Uint32("shardID", api.shardID).
+				Uint32("shardID", api.shardID.ShardID()).
 				Err(err).
 				Msg("unable to sync filters from other readers")
 		}

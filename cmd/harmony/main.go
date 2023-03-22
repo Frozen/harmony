@@ -709,11 +709,14 @@ func setupConsensusAndNode(hc harmonyconfig.HarmonyConfig, nodeConfig *nodeconfi
 		}
 	}
 
-	var blockchain core.BlockChain
+	var (
+		blockchain core.BlockChain
+		epochchain core.BlockChain
+	)
 
 	// We are not beacon chain, make sure beacon already initialized.
 	if nodeConfig.ShardID != shard.BeaconChainShardID {
-		_, err = collection.ShardChain(shard.BeaconChainShardID, core.Options{EpochChain: true})
+		epochchain, err = collection.ShardChain(shard.BeaconChainShardID, core.Options{EpochChain: true})
 		if err != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "Error :%v \n", err)
 			os.Exit(1)
@@ -729,7 +732,9 @@ func setupConsensusAndNode(hc harmonyconfig.HarmonyConfig, nodeConfig *nodeconfi
 	// Consensus object.
 	decider := quorum.NewDecider(quorum.SuperMajorityVote, nodeConfig.ShardID)
 	currentConsensus, err := consensus.New(
-		myHost, nodeConfig.ShardID, nodeConfig.ConsensusPriKey, registry.SetBlockchain(blockchain), decider, minPeers, aggregateSig)
+		myHost, nodeConfig.ShardID, nodeConfig.ConsensusPriKey,
+		registry.SetBlockchain(blockchain).SetEpochChain(epochchain),
+		decider, minPeers, aggregateSig)
 
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "Error :%v \n", err)

@@ -264,7 +264,7 @@ func unpackWrappedTransactionFromString(
 func (s *ConstructAPI) ConstructionPayloads(
 	ctx context.Context, request *types.ConstructionPayloadsRequest,
 ) (*types.ConstructionPayloadsResponse, *types.Error) {
-	if err := assertValidNetworkIdentifier(request.NetworkIdentifier, s.hmy.ShardID); err != nil {
+	if err := assertValidNetworkIdentifier(request.NetworkIdentifier, s.hmy.ShardID()); err != nil {
 		return nil, err
 	}
 	if request.Metadata == nil {
@@ -305,7 +305,7 @@ func (s *ConstructAPI) ConstructionPayloads(
 			"message": "sender account identifier from operations does not match account identifier from public key",
 		})
 	}
-	if metadata.Transaction.FromShardID != nil && *metadata.Transaction.FromShardID != s.hmy.ShardID {
+	if metadata.Transaction.FromShardID != nil && *metadata.Transaction.FromShardID != s.hmy.ShardID() {
 		return nil, common.NewError(common.InvalidTransactionConstructionError, map[string]interface{}{
 			"message": fmt.Sprintf("transaction is for shard %v != shard %v",
 				*metadata.Transaction.FromShardID, s.hmy.ShardID,
@@ -313,7 +313,7 @@ func (s *ConstructAPI) ConstructionPayloads(
 		})
 	}
 
-	unsignedTx, rosettaError := ConstructTransaction(components, metadata, s.hmy.ShardID)
+	unsignedTx, rosettaError := ConstructTransaction(components, metadata, s.hmy.ShardID())
 	if rosettaError != nil {
 		return nil, rosettaError
 	}
@@ -369,7 +369,7 @@ func (s *ConstructAPI) getSigningPayload(
 func (s *ConstructAPI) ConstructionCombine(
 	ctx context.Context, request *types.ConstructionCombineRequest,
 ) (*types.ConstructionCombineResponse, *types.Error) {
-	if err := assertValidNetworkIdentifier(request.NetworkIdentifier, s.hmy.ShardID); err != nil {
+	if err := assertValidNetworkIdentifier(request.NetworkIdentifier, s.hmy.ShardID()); err != nil {
 		return nil, err
 	}
 	wrappedTransaction, tx, rosettaError := unpackWrappedTransactionFromString(request.UnsignedTransaction, false)
@@ -381,7 +381,7 @@ func (s *ConstructAPI) ConstructionCombine(
 			"message": "require exactly 1 signature",
 		})
 	}
-	if tx.ShardID() != s.hmy.ShardID {
+	if tx.ShardID() != s.hmy.ShardID() {
 		return nil, common.NewError(common.InvalidTransactionConstructionError, map[string]interface{}{
 			"message": fmt.Sprintf("transaction is for shard %v != shard %v", tx.ShardID(), s.hmy.ShardID),
 		})

@@ -15,14 +15,14 @@ import (
 func (s *ConstructAPI) ConstructionParse(
 	ctx context.Context, request *types.ConstructionParseRequest,
 ) (*types.ConstructionParseResponse, *types.Error) {
-	if err := assertValidNetworkIdentifier(request.NetworkIdentifier, s.hmy.ShardID); err != nil {
+	if err := assertValidNetworkIdentifier(request.NetworkIdentifier, s.hmy.ShardID()); err != nil {
 		return nil, err
 	}
 	wrappedTransaction, tx, rosettaError := unpackWrappedTransactionFromString(request.Transaction, request.Signed)
 	if rosettaError != nil {
 		return nil, rosettaError
 	}
-	if tx.ShardID() != s.hmy.ShardID {
+	if tx.ShardID() != s.hmy.ShardID() {
 		return nil, common.NewError(common.InvalidTransactionConstructionError, map[string]interface{}{
 			"message": fmt.Sprintf("transaction is for shard %v != shard %v", tx.ShardID(), s.hmy.ShardID),
 		})

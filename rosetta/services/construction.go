@@ -35,8 +35,8 @@ type ConstructAPI struct {
 func NewConstructionAPI(hmy *hmy.Harmony) server.ConstructionAPIServicer {
 	return &ConstructAPI{
 		hmy:            hmy,
-		signer:         hmyTypes.NewEIP155Signer(new(big.Int).SetUint64(hmy.ChainID)),
-		stakingSigner:  stakingTypes.NewEIP155Signer(new(big.Int).SetUint64(hmy.ChainID)),
+		signer:         hmyTypes.NewEIP155Signer(new(big.Int).SetUint64(hmy.ChainID())),
+		stakingSigner:  stakingTypes.NewEIP155Signer(new(big.Int).SetUint64(hmy.ChainID())),
 		evmCallTimeout: hmy.NodeAPI.GetConfig().NodeConfig.RPCServer.EvmCallTimeout,
 	}
 }
@@ -45,7 +45,7 @@ func NewConstructionAPI(hmy *hmy.Harmony) server.ConstructionAPIServicer {
 func (s *ConstructAPI) ConstructionDerive(
 	ctx context.Context, request *types.ConstructionDeriveRequest,
 ) (*types.ConstructionDeriveResponse, *types.Error) {
-	if err := assertValidNetworkIdentifier(request.NetworkIdentifier, s.hmy.ShardID); err != nil {
+	if err := assertValidNetworkIdentifier(request.NetworkIdentifier, s.hmy.ShardID()); err != nil {
 		return nil, err
 	}
 	address, rosettaError := getAddressFromPublicKey(request.PublicKey)

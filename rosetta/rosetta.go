@@ -30,13 +30,13 @@ func StartServers(hmy *hmy.Harmony, config nodeconfig.RosettaServerConfig, limit
 		return nil
 	}
 
-	network, err := common.GetNetwork(hmy.ShardID)
+	network, err := common.GetNetwork(hmy.ShardID())
 	if err != nil {
 		return err
 	}
 	serverAsserter, err := asserter.NewServer(
 		append(common.PlainOperationTypes, common.StakingOperationTypes...),
-		nodeconfig.GetShardConfig(hmy.ShardID).Role() == nodeconfig.ExplorerNode,
+		nodeconfig.GetShardConfig(hmy.ShardID()).Role() == nodeconfig.ExplorerNode,
 		[]*types.NetworkIdentifier{network}, services.CallMethod, false, "",
 	)
 	if err != nil {

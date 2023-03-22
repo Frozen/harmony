@@ -79,7 +79,7 @@ type Consensus struct {
 	// Block to run consensus on
 	block []byte
 	// Shard Id which this node belongs to
-	ShardID uint32
+	shardID uint32
 	// IgnoreViewIDCheck determines whether to ignore viewID check
 	IgnoreViewIDCheck *abool.AtomicBool
 	// consensus mutex
@@ -137,6 +137,11 @@ type Consensus struct {
 // Blockchain returns the blockchain.
 func (consensus *Consensus) Blockchain() core.BlockChain {
 	return consensus.registry.GetBlockchain()
+}
+
+// EpochChain returns the blockchain.
+func (consensus *Consensus) EpochChain() core.BlockChain {
+	return consensus.registry.GetEpochChain()
 }
 
 // VerifyBlock is a function used to verify the block and keep trace of verified blocks.
@@ -234,6 +239,11 @@ func (consensus *Consensus) getBlockNum() uint64 {
 	return atomic.LoadUint64(&consensus.blockNum)
 }
 
+// ShardID returns the shard ID.
+func (consensus *Consensus) ShardID() uint32 {
+	return consensus.shardID
+}
+
 // New create a new Consensus record
 func New(
 	host p2p.Host, shard uint32, multiBLSPriKey multibls.PrivateKeys,
@@ -241,7 +251,7 @@ func New(
 	Decider quorum.Decider, minPeers int, aggregateSig bool,
 ) (*Consensus, error) {
 	consensus := Consensus{
-		ShardID: shard,
+		shardID: shard,
 	}
 	consensus.Decider = Decider
 	consensus.registry = registry
@@ -269,8 +279,7 @@ func New(
 	// viewID has to be initialized as the height of
 	// the blockchain during initialization as it was
 	// displayed on explorer as Height right now
-	consensus.SetCurBlockViewID(0)
-	consensus.ShardID = shard
+	consensus.setCurBlockViewID(0)
 	consensus.SlashChan = make(chan slash.Record)
 	consensus.ReadySignal = make(chan ProposalType)
 	consensus.CommitSigChannel = make(chan []byte)

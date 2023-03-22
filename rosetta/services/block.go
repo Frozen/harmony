@@ -56,7 +56,7 @@ type BlockMetadata struct {
 func (s *BlockAPI) Block(
 	ctx context.Context, request *types.BlockRequest,
 ) (response *types.BlockResponse, rosettaError *types.Error) {
-	if err := assertValidNetworkIdentifier(request.NetworkIdentifier, s.hmy.ShardID); err != nil {
+	if err := assertValidNetworkIdentifier(request.NetworkIdentifier, s.hmy.ShardID()); err != nil {
 		return nil, err
 	}
 
@@ -142,7 +142,7 @@ func (s *BlockAPI) Block(
 func (s *BlockAPI) BlockTransaction(
 	ctx context.Context, request *types.BlockTransactionRequest,
 ) (*types.BlockTransactionResponse, *types.Error) {
-	if err := assertValidNetworkIdentifier(request.NetworkIdentifier, s.hmy.ShardID); err != nil {
+	if err := assertValidNetworkIdentifier(request.NetworkIdentifier, s.hmy.ShardID()); err != nil {
 		return nil, err
 	}
 

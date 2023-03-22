@@ -66,7 +66,7 @@ func (node *Node) ReportPlainErrorSink() types.TransactionErrorReports {
 
 // StartRPC start RPC service
 func (node *Node) StartRPC() error {
-	harmony := hmy.New(node, node.TxPool, node.CxPool, node.Consensus.ShardID)
+	harmony := hmy.New(node, node.TxPool, node.CxPool, node.Consensus)
 
 	// Gather all the possible APIs to surface
 	apis := node.APIs(harmony)
@@ -81,7 +81,8 @@ func (node *Node) StopRPC() error {
 
 // StartRosetta start rosetta service
 func (node *Node) StartRosetta() error {
-	harmony := hmy.New(node, node.TxPool, node.CxPool, node.Consensus.ShardID)
+	// TODO shard id can change during runtime.
+	harmony := hmy.New(node, node.TxPool, node.CxPool, node.Consensus)
 	return rosetta.StartServers(harmony, node.NodeConfig.RosettaServer, node.NodeConfig.RPCServer.RateLimiterEnabled, node.NodeConfig.RPCServer.RequestsPerSecond)
 }
 
@@ -93,8 +94,8 @@ func (node *Node) StopRosetta() error {
 // APIs return the collection of local RPC services.
 // NOTE, some of these services probably need to be moved to somewhere else.
 func (node *Node) APIs(harmony *hmy.Harmony) []rpc.API {
-	hmyFilter := filters.NewPublicFilterAPI(harmony, false, "hmy", harmony.ShardID)
-	ethFilter := filters.NewPublicFilterAPI(harmony, false, "eth", harmony.ShardID)
+	hmyFilter := filters.NewPublicFilterAPI(harmony, false, "hmy", harmony)
+	ethFilter := filters.NewPublicFilterAPI(harmony, false, "eth", harmony)
 
 	if node.HarmonyConfig.General.RunElasticMode && node.HarmonyConfig.TiKV.Role == tikv.RoleReader {
 		hmyFilter.Service.(*filters.PublicFilterAPI).SyncNewFilterFromOtherReaders()
@@ -103,9 +104,9 @@ func (node *Node) APIs(harmony *hmy.Harmony) []rpc.API {
 
 	// Append all the local APIs and return
 	return []rpc.API{
-		hmy_rpc.NewPublicNetAPI(node.host, harmony.ChainID, hmy_rpc.V1),
-		hmy_rpc.NewPublicNetAPI(node.host, harmony.ChainID, hmy_rpc.V2),
-		hmy_rpc.NewPublicNetAPI(node.host, harmony.ChainID, hmy_rpc.Eth),
+		hmy_rpc.NewPublicNetAPI(node.host, harmony.ChainID(), hmy_rpc.V1),
+		hmy_rpc.NewPublicNetAPI(node.host, harmony.ChainID(), hmy_rpc.V2),
+		hmy_rpc.NewPublicNetAPI(node.host, harmony.ChainID(), hmy_rpc.Eth),
 		hmy_rpc.NewPublicWeb3API(),
 		hmyFilter,
 		ethFilter,

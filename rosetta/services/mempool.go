@@ -29,7 +29,7 @@ func NewMempoolAPI(hmy *hmy.Harmony) server.MempoolAPIServicer {
 func (s *MempoolAPI) Mempool(
 	ctx context.Context, req *types.NetworkRequest,
 ) (*types.MempoolResponse, *types.Error) {
-	if err := assertValidNetworkIdentifier(req.NetworkIdentifier, s.hmy.ShardID); err != nil {
+	if err := assertValidNetworkIdentifier(req.NetworkIdentifier, s.hmy.ShardID()); err != nil {
 		return nil, err
 	}
 
@@ -54,7 +54,7 @@ func (s *MempoolAPI) Mempool(
 func (s *MempoolAPI) MempoolTransaction(
 	ctx context.Context, req *types.MempoolTransactionRequest,
 ) (*types.MempoolTransactionResponse, *types.Error) {
-	if err := assertValidNetworkIdentifier(req.NetworkIdentifier, s.hmy.ShardID); err != nil {
+	if err := assertValidNetworkIdentifier(req.NetworkIdentifier, s.hmy.ShardID()); err != nil {
 		return nil, err
 	}
 

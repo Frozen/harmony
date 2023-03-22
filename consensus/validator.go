@@ -442,7 +442,7 @@ func (consensus *Consensus) constructP2pMessages(msgType msg_pb.MessageType, pay
 }
 
 func (consensus *Consensus) broadcastConsensusP2pMessages(p2pMsgs []*NetworkMessage) error {
-	groupID := []nodeconfig.GroupID{nodeconfig.NewGroupIDByShardID(nodeconfig.ShardID(consensus.ShardID))}
+	groupID := []nodeconfig.GroupID{nodeconfig.NewGroupIDByShardID(nodeconfig.ShardID(consensus.ShardID()))}
 
 	for _, p2pMsg := range p2pMsgs {
 		// TODO: this will not return immediately, may block

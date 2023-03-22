@@ -84,7 +84,7 @@ func (s *BlockAPI) getSideEffectTransaction(
 
 	// Handle genesis funds
 	if blk.NumberU64() == 0 {
-		ops, rosettaError := GetSideEffectOperationsFromGenesisSpec(core.GetGenesisSpec(s.hmy.ShardID), startingOpIndex)
+		ops, rosettaError := GetSideEffectOperationsFromGenesisSpec(core.GetGenesisSpec(s.hmy.ShardID()), startingOpIndex)
 		if rosettaError != nil {
 			return nil, rosettaError
 		}

@@ -38,7 +38,7 @@ func NewAccountAPI(hmy *hmy.Harmony) server.AccountAPIServicer {
 func (s *AccountAPI) AccountBalance(
 	ctx context.Context, request *types.AccountBalanceRequest,
 ) (*types.AccountBalanceResponse, *types.Error) {
-	if err := assertValidNetworkIdentifier(request.NetworkIdentifier, s.hmy.ShardID); err != nil {
+	if err := assertValidNetworkIdentifier(request.NetworkIdentifier, s.hmy.ShardID()); err != nil {
 		return nil, err
 	}
 

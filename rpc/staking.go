@@ -530,7 +530,7 @@ func (s *PublicStakingService) GetValidatorTotalDelegation(
 	defer DoRPCRequestDuration(GetValidatorTotalDelegation, timer)
 
 	// Ensure node is for beacon shard
-	if s.hmy.ShardID != shard.BeaconChainShardID {
+	if s.hmy.ShardID() != shard.BeaconChainShardID {
 		return nil, ErrNotBeaconShard
 	}
 
@@ -859,7 +859,7 @@ func (s *PublicStakingService) GetAvailableRedelegationBalance(
 		return nil, ErrNotBeaconShard
 	}
 
-	currEpoch := s.hmy.BlockChain.CurrentHeader().Epoch()
+	currEpoch := s.hmy.BlockChain().CurrentHeader().Epoch()
 
 	delegatorAddr, err := internal_common.ParseAddr(address)
 	if err != nil {
@@ -879,5 +879,5 @@ func (s *PublicStakingService) GetAvailableRedelegationBalance(
 }
 
 func isBeaconShard(hmy *hmy.Harmony) bool {
-	return hmy.ShardID == shard.BeaconChainShardID
+	return hmy.ShardID() == shard.BeaconChainShardID
 }

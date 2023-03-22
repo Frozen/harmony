@@ -49,7 +49,7 @@ func (s *PublicHarmonyService) Syncing(
 	ctx context.Context,
 ) (interface{}, error) {
 	// difference = target - current
-	inSync, target, difference := s.hmy.NodeAPI.SyncStatus(s.hmy.ShardID)
+	inSync, target, difference := s.hmy.NodeAPI.SyncStatus(s.hmy.ShardID())
 	if inSync {
 		return false, nil
 	}
@@ -100,7 +100,7 @@ func (s *PublicHarmonyService) GetPeerInfo(
 
 // GetNumPendingCrossLinks returns length of hmy.BlockChain.ReadPendingCrossLinks()
 func (s *PublicHarmonyService) GetNumPendingCrossLinks() (int, error) {
-	links, err := s.hmy.BlockChain.ReadPendingCrossLinks()
+	links, err := s.hmy.BlockChain().ReadPendingCrossLinks()
 	if err != nil {
 		return 0, err
 	}

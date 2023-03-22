@@ -37,7 +37,7 @@ func NewNetworkAPI(hmy *hmy.Harmony) server.NetworkAPIServicer {
 func (s *NetworkAPI) NetworkList(
 	ctx context.Context, request *types.MetadataRequest,
 ) (*types.NetworkListResponse, *types.Error) {
-	network, err := common.GetNetwork(s.hmy.ShardID)
+	network, err := common.GetNetwork(s.hmy.ShardID())
 	if err != nil {
 		return nil, common.NewError(common.CatchAllError, map[string]interface{}{
 			"message": err.Error(),
@@ -54,7 +54,7 @@ func (s *NetworkAPI) NetworkList(
 func (s *NetworkAPI) NetworkStatus(
 	ctx context.Context, request *types.NetworkRequest,
 ) (*types.NetworkStatusResponse, *types.Error) {
-	if err := assertValidNetworkIdentifier(request.NetworkIdentifier, s.hmy.ShardID); err != nil {
+	if err := assertValidNetworkIdentifier(request.NetworkIdentifier, s.hmy.ShardID()); err != nil {
 		return nil, err
 	}
 
@@ -84,7 +84,7 @@ func (s *NetworkAPI) NetworkStatus(
 	if rosettaError != nil {
 		return nil, rosettaError
 	}
-	isSyncing, targetHeight, _ := s.hmy.NodeAPI.SyncStatus(s.hmy.BlockChain.ShardID())
+	isSyncing, targetHeight, _ := s.hmy.NodeAPI.SyncStatus(s.hmy.ShardID())
 	syncStatus := common.SyncingFinish
 	if targetHeight == 0 {
 		syncStatus = common.SyncingUnknown
@@ -100,8 +100,8 @@ func (s *NetworkAPI) NetworkStatus(
 
 	// Only applicable to non-archival nodes
 	var oldestBlockIdentifier *types.BlockIdentifier
-	if !nodeconfig.GetShardConfig(s.hmy.ShardID).GetArchival() {
-		maxGarbCollectedBlockNum := s.hmy.BlockChain.GetMaxGarbageCollectedBlockNumber()
+	if !nodeconfig.GetShardConfig(s.hmy.ShardID()).GetArchival() {
+		maxGarbCollectedBlockNum := s.hmy.BlockChain().GetMaxGarbageCollectedBlockNumber()
 		if maxGarbCollectedBlockNum == -1 || maxGarbCollectedBlockNum >= currentHeader.Number().Int64() {
 			oldestBlockIdentifier = currentBlockIdentifier
 		} else {
@@ -145,14 +145,14 @@ func (s *NetworkAPI) NetworkStatus(
 func (s *NetworkAPI) NetworkOptions(
 	ctx context.Context, request *types.NetworkRequest,
 ) (*types.NetworkOptionsResponse, *types.Error) {
-	if err := assertValidNetworkIdentifier(request.NetworkIdentifier, s.hmy.ShardID); err != nil {
+	if err := assertValidNetworkIdentifier(request.NetworkIdentifier, s.hmy.ShardID()); err != nil {
 		return nil, err
 	}
 
 	// Fetch allows based on current network option
 	var allow *types.Allow
-	isArchival := nodeconfig.GetShardConfig(s.hmy.ShardID).GetArchival()
-	if s.hmy.ShardID == shard.BeaconChainShardID {
+	isArchival := nodeconfig.GetShardConfig(s.hmy.ShardID()).GetArchival()
+	if s.hmy.ShardID() == shard.BeaconChainShardID {
 		allow = getBeaconAllow(isArchival)
 	} else {
 		allow = getAllow(isArchival)

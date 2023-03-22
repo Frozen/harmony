@@ -32,7 +32,7 @@ func (s *SearchAPI) SearchTransactions(ctx context.Context, request *types.Searc
 		}
 	}
 
-	if err := assertValidNetworkIdentifier(request.NetworkIdentifier, s.hmy.ShardID); err != nil {
+	if err := assertValidNetworkIdentifier(request.NetworkIdentifier, s.hmy.ShardID()); err != nil {
 		return nil, err
 	}
 
