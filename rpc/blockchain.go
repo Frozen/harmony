@@ -100,7 +100,7 @@ func (s *PublicBlockchainService) ChainId(ctx context.Context) (interface{}, err
 	case V1:
 		return hexutil.Uint64(s.hmy.ChainID()), nil
 	case V2:
-		return s.hmy.ChainID, nil
+		return s.hmy.ChainID(), nil
 	case Eth:
 		ethChainID := nodeconfig.GetDefaultConfig().GetNetworkType().ChainConfig().EthCompatibleChainID
 		return hexutil.Uint64(ethChainID.Uint64()), nil
