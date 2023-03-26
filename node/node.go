@@ -118,7 +118,6 @@ type Node struct {
 	epochSync              *legacysync.EpochSync
 	stateStagedSync        *stagedsync.StagedSync
 	peerRegistrationRecord map[string]*syncConfig // record registration time (unixtime) of peers begin in syncing
-	SyncingPeerProvider    SyncingPeerProvider
 	// The p2p host used to send/receive p2p messages
 	host p2p.Host
 	// Service manager.

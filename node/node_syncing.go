@@ -146,11 +146,6 @@ func (node *Node) createStagedSync(bc core.BlockChain) *stagedsync.StagedSync {
 	}
 }
 
-// SyncingPeerProvider is an interface for getting the peers in the given shard.
-type SyncingPeerProvider interface {
-	SyncingPeers(shardID uint32) (peers []p2p.Peer, err error)
-}
-
 // DNSSyncingPeerProvider uses the given DNS zone to resolve syncing peers.
 type DNSSyncingPeerProvider struct {
 	selfAddrs  []multiaddr.Multiaddr
@@ -265,7 +260,7 @@ func (node *Node) doBeaconSyncing() {
 		if peersCount < legacysync.NumPeersLowBound {
 			utils.Logger().Warn().
 				Msgf("[EPOCHSYNC] num peers %d less than low bound %d; bootstrapping beacon sync config", peersCount, legacysync.NumPeersLowBound)
-			peers, err := node.SyncingPeerProvider.SyncingPeers(shard.BeaconChainShardID)
+			peers, err := node.registry.GetSyncingPeerProvider().SyncingPeers(shard.BeaconChainShardID)
 			if err != nil {
 				utils.Logger().
 					Err(err).
@@ -309,7 +304,7 @@ func (node *Node) doSync(bc core.BlockChain, worker *worker.Worker, willJoinCons
 	syncInstance := node.SyncInstance()
 	if syncInstance.GetActivePeerNumber() < legacysync.NumPeersLowBound {
 		shardID := bc.ShardID()
-		peers, err := node.SyncingPeerProvider.SyncingPeers(shardID)
+		peers, err := node.registry.GetSyncingPeerProvider().SyncingPeers(shardID)
 		if err != nil {
 			utils.Logger().Warn().
 				Err(err).

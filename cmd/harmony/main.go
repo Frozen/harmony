@@ -658,7 +658,7 @@ func createGlobalConfig(hc harmonyconfig.HarmonyConfig) (*nodeconfig.ConfigType,
 	return nodeConfig, nil
 }
 
-func setupConsensusAndNode(hc harmonyconfig.HarmonyConfig, nodeConfig *nodeconfig.ConfigType, registry *registry.Registry) *node.Node {
+func setupConsensusAndNode(hc harmonyconfig.HarmonyConfig, nodeConfig *nodeconfig.ConfigType, reg *registry.Registry) *node.Node {
 	// Parse minPeers from harmonyconfig.HarmonyConfig
 	var minPeers int
 	var aggregateSig bool
@@ -733,20 +733,12 @@ func setupConsensusAndNode(hc harmonyconfig.HarmonyConfig, nodeConfig *nodeconfi
 	decider := quorum.NewDecider(quorum.SuperMajorityVote, nodeConfig.ShardID)
 	currentConsensus, err := consensus.New(
 		myHost, nodeConfig.ShardID, nodeConfig.ConsensusPriKey,
-		registry.SetBlockchain(blockchain).SetEpochChain(epochchain),
+		reg.SetBlockchain(blockchain).SetEpochChain(epochchain),
 		decider, minPeers, aggregateSig)
 
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "Error :%v \n", err)
 		os.Exit(1)
-	}
-
-	currentNode := node.New(myHost, currentConsensus, collection, blacklist, allowedTxs, localAccounts, nodeConfig.ArchiveModes(), &hc, registry)
-
-	if hc.Legacy != nil && hc.Legacy.TPBroadcastInvalidTxn != nil {
-		currentNode.BroadcastInvalidTx = *hc.Legacy.TPBroadcastInvalidTxn
-	} else {
-		currentNode.BroadcastInvalidTx = defaultBroadcastInvalidTx
 	}
 
 	// Syncing provider is provided by following rules:
@@ -757,12 +749,23 @@ func setupConsensusAndNode(hc harmonyconfig.HarmonyConfig, nodeConfig *nodeconfi
 	if hc.Network.NetworkType == nodeconfig.Localnet || hc.General.IsOffline {
 		epochConfig := shard.Schedule.InstanceForEpoch(ethCommon.Big0)
 		selfPort := hc.P2P.Port
-		currentNode.SyncingPeerProvider = node.NewLocalSyncingPeerProvider(
+		syncingPeerProvider := node.NewLocalSyncingPeerProvider(
 			6000, uint16(selfPort), epochConfig.NumShards(), uint32(epochConfig.NumNodesPerShard()))
+		reg.SetSyncingPeerProvider(syncingPeerProvider)
 	} else {
 		addrs := myHost.GetP2PHost().Addrs()
-		currentNode.SyncingPeerProvider = node.NewDNSSyncingPeerProvider(hc.DNSSync.Zone, strconv.Itoa(hc.DNSSync.Port), addrs)
+		syncingPeerProvider := node.NewDNSSyncingPeerProvider(hc.DNSSync.Zone, strconv.Itoa(hc.DNSSync.Port), addrs)
+		reg.SetSyncingPeerProvider(syncingPeerProvider)
 	}
+
+	currentNode := node.New(myHost, currentConsensus, collection, blacklist, allowedTxs, localAccounts, nodeConfig.ArchiveModes(), &hc, reg)
+
+	if hc.Legacy != nil && hc.Legacy.TPBroadcastInvalidTxn != nil {
+		currentNode.BroadcastInvalidTx = *hc.Legacy.TPBroadcastInvalidTxn
+	} else {
+		currentNode.BroadcastInvalidTx = defaultBroadcastInvalidTx
+	}
+
 	currentNode.NodeConfig.DNSZone = hc.DNSSync.Zone
 
 	currentNode.NodeConfig.SetBeaconGroupID(
