@@ -659,6 +659,7 @@ func (consensus *Consensus) tryCatchup() error {
 	return nil
 }
 
+// commitBlock adds the block to blockchain and update the consensus state.
 func (consensus *Consensus) commitBlock(blk *types.Block, committedMsg *FBFTMessage) error {
 	if consensus.Blockchain().CurrentBlock().NumberU64() < blk.NumberU64() {
 		if _, err := consensus.Blockchain().InsertChain([]*types.Block{blk}, !consensus.FBFTLog.IsBlockVerified(blk.Hash())); err != nil {
