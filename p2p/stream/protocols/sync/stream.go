@@ -192,7 +192,9 @@ func (st *syncStream) handleGetBlockNumberRequest(rid uint64) error {
 		"request_type": "getBlockNumber",
 	}).Inc()
 
-	resp := st.computeBlockNumberResp(rid)
+	n := st.chain.getCurrentBlockNumber()
+	resp := st.computeBlockNumberResp(rid, n)
+	fmt.Printf("handleGetBlockNumberRequest: %s %d\n", st.ID(), n)
 	if err := st.writeMsg(resp); err != nil {
 		return errors.Wrap(err, "[GetBlockNumber]: writeMsg")
 	}
@@ -293,8 +295,7 @@ func (st *syncStream) writeMsg(msg *syncpb.Message) error {
 	return st.WriteBytes(b)
 }
 
-func (st *syncStream) computeBlockNumberResp(rid uint64) *syncpb.Message {
-	bn := st.chain.getCurrentBlockNumber()
+func (st *syncStream) computeBlockNumberResp(rid uint64, bn uint64) *syncpb.Message {
 	return syncpb.MakeGetBlockNumberResponseMessage(rid, bn)
 }
 
