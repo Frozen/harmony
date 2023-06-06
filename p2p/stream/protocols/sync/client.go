@@ -81,6 +81,7 @@ func (p *Protocol) GetCurrentBlockNumber(ctx context.Context, opts ...Option) (b
 	req := newGetBlockNumberRequest()
 
 	resp, stid, err := p.rm.DoRequest(ctx, req, opts...)
+	fmt.Printf("GetCurrentBlockNumberRequest %+v, %+v, %s, %q\n", req, resp, stid, err)
 	if err != nil {
 		return 0, stid, err
 	}
