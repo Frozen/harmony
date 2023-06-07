@@ -412,7 +412,7 @@ func CreateView(ctx context.Context, db kv.RwDB, tx kv.Tx, f func(tx kv.Tx) erro
 	if tx != nil {
 		return f(tx)
 	}
-	return db.View(context.Background(), func(etx kv.Tx) error {
+	return db.View(ctx, func(etx kv.Tx) error {
 		return f(etx)
 	})
 }

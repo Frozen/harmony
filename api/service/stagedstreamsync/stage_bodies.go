@@ -64,7 +64,7 @@ func (b *StageBodies) Exec(ctx context.Context, firstCycle bool, invalidBlockRev
 		return nil
 	}
 
-	maxHeight := s.state.status.targetBN
+	maxHeight := s.state.status.getTargetBN()
 	currentHead := b.configs.bc.CurrentBlock().NumberU64()
 	if currentHead >= maxHeight {
 		return nil
@@ -103,7 +103,7 @@ func (b *StageBodies) Exec(ctx context.Context, firstCycle bool, invalidBlockRev
 
 	if useInternalTx {
 		var err error
-		tx, err = b.configs.db.BeginRw(context.Background())
+		tx, err = b.configs.db.BeginRw(ctx)
 		if err != nil {
 			return err
 		}

@@ -52,25 +52,6 @@ func (finish *StageFinish) Exec(ctx context.Context, firstCycle bool, invalidBlo
 	return nil
 }
 
-func (bh *StageFinish) clearBucket(tx kv.RwTx, isBeacon bool) error {
-	useInternalTx := tx == nil
-	if useInternalTx {
-		var err error
-		tx, err = bh.configs.db.BeginRw(context.Background())
-		if err != nil {
-			return err
-		}
-		defer tx.Rollback()
-	}
-
-	if useInternalTx {
-		if err := tx.Commit(); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 func (finish *StageFinish) Revert(firstCycle bool, u *RevertState, s *StageState, tx kv.RwTx) (err error) {
 	useInternalTx := tx == nil
 	if useInternalTx {

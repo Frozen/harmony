@@ -106,7 +106,7 @@ func MakeGetBlocksByNumResponseMessage(rid uint64, blocksBytes, sigs [][]byte) *
 	return makeMessageFromResponse(resp)
 }
 
-// MakeGetBlocksByNumResponseMessage make the GetBlocksByNumResponse of Response type
+// MakeGetBlocksByNumResponse make the GetBlocksByNumResponse of Response type
 func MakeGetBlocksByNumResponse(rid uint64, blocksBytes, sigs [][]byte) *Response {
 	return &Response{
 		ReqId: rid,

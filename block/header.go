@@ -38,7 +38,7 @@ var (
 )
 
 // MarshalJSON ..
-func (h Header) MarshalJSON() ([]byte, error) {
+func (h *Header) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		ParentHash  common.Hash      `json:"parentHash"`
 		UncleHash   common.Hash      `json:"sha3Uncles"`
@@ -84,7 +84,7 @@ func (h Header) MarshalJSON() ([]byte, error) {
 }
 
 // String ..
-func (h Header) String() string {
+func (h *Header) String() string {
 	s, _ := json.Marshal(h)
 	return string(s)
 }
@@ -120,6 +120,11 @@ func (h *Header) DecodeRLP(s *rlp.Stream) error {
 // choose and return the right tagged RLP form of the header.
 func (h *Header) Hash() common.Hash {
 	return hash.FromRLP(h)
+}
+
+// NumberU64 returns the block number as a uint64.
+func (h *Header) NumberU64() uint64 {
+	return h.Number().Uint64()
 }
 
 // Logger returns a sub-logger with block contexts added.

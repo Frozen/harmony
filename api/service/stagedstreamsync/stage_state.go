@@ -64,7 +64,7 @@ func (stg *StageStates) Exec(ctx context.Context, firstCycle bool, invalidBlockR
 		return nil
 	}
 
-	maxHeight := s.state.status.targetBN
+	maxHeight := s.state.status.getTargetBN()
 	currentHead := stg.configs.bc.CurrentBlock().NumberU64()
 	if currentHead >= maxHeight {
 		return nil
@@ -93,7 +93,7 @@ func (stg *StageStates) Exec(ctx context.Context, firstCycle bool, invalidBlockR
 	// prepare db transactions
 	txs := make([]kv.RwTx, stg.configs.concurrency)
 	for i := 0; i < stg.configs.concurrency; i++ {
-		txs[i], err = stg.configs.blockDBs[i].BeginRw(context.Background())
+		txs[i], err = stg.configs.blockDBs[i].BeginRw(ctx)
 		if err != nil {
 			return err
 		}
