@@ -73,7 +73,7 @@ func New(harmonyConfig *harmonyconfig.HarmonyConfig, selfPeer *p2p.Peer, bc core
 }
 
 // Start starts explorer service.
-func (s *Service) Start() error {
+func (s *Service) Start(ctx context.Context) error {
 	utils.Logger().Info().Msg("Starting explorer service.")
 	s.Init()
 	s.server = s.Run()

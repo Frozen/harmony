@@ -1,6 +1,7 @@
 package pprof
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net/http"
@@ -79,7 +80,7 @@ func newService(cfg Config) *Service {
 }
 
 // Start start the service
-func (s *Service) Start() error {
+func (s *Service) Start(ctx context.Context) error {
 	dir, err := filepath.Abs(s.config.Folder)
 	if err != nil {
 		return err

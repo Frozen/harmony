@@ -1,7 +1,7 @@
 package service
 
 import (
-	"fmt"
+	"context"
 
 	"github.com/harmony-one/harmony/internal/utils"
 	"github.com/pkg/errors"
@@ -55,8 +55,7 @@ func (t Type) String() string {
 
 // Service is the collection of functions any service needs to implement.
 type Service interface {
-	Start() error
-	Stop() error
+	Start(ctx context.Context) error
 }
 
 // Manager stores all services for service manager.
@@ -99,22 +98,24 @@ func (m *Manager) GetService(t Type) Service {
 
 // StartServices run all registered services. If one of the starting service returns
 // an error, closing all started services.
-func (m *Manager) StartServices() (err error) {
+func (m *Manager) StartServices(ctx context.Context) (err error) {
 	started := make([]Service, 0, len(m.services))
+	ctx, cancel := context.WithCancel(ctx)
 
 	defer func() {
 		if err != nil {
+			cancel()
 			// If error is not nil, closing all services in reverse order
-			if stopErr := m.stopServices(started); stopErr != nil {
-				err = fmt.Errorf("%v; %v", err, stopErr)
-			}
+			//if stopErr := m.stopServices(started); stopErr != nil {
+			//	err = fmt.Errorf("%v; %v", err, stopErr)
+			//}
 		}
 	}()
 
 	for _, service := range m.services {
 		t := m.typeByService(service)
 		m.logger.Info().Str("type", t.String()).Msg("Starting service")
-		if err = service.Start(); err != nil {
+		if err = service.Start(ctx); err != nil {
 			err = errors.Wrapf(err, "cannot start service [%v]", t.String())
 			return err
 		}
@@ -130,24 +131,28 @@ func (m *Manager) StopServices() error {
 
 // stopServices stops given services in the reverse order.
 func (m *Manager) stopServices(services []Service) error {
-	size := len(services)
-	var rErr error
+	panic("stopServices")
+	/*
+		size := len(services)
+		var rErr error
 
-	for i := size - 1; i >= 0; i-- {
-		service := services[i]
-		t := m.typeByService(service)
+		for i := size - 1; i >= 0; i-- {
+			service := services[i]
+			t := m.typeByService(service)
 
-		m.logger.Info().Str("type", t.String()).Msg("Stopping service")
-		if err := service.Stop(); err != nil {
-			err = errors.Wrapf(err, "failed to stop service [%v]", t.String())
-			if rErr != nil {
-				rErr = fmt.Errorf("%v; %v", rErr, err)
-			} else {
-				rErr = err
+			m.logger.Info().Str("type", t.String()).Msg("Stopping service")
+			if err := service.Stop(); err != nil {
+				err = errors.Wrapf(err, "failed to stop service [%v]", t.String())
+				if rErr != nil {
+					rErr = fmt.Errorf("%v; %v", rErr, err)
+				} else {
+					rErr = err
+				}
 			}
 		}
-	}
-	return rErr
+		return rErr
+
+	*/
 }
 
 func (m *Manager) typeByService(target Service) Type {

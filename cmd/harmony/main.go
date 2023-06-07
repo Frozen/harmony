@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"io/ioutil"
 	"math/big"
@@ -154,7 +155,7 @@ func runHarmonyNode(cmd *cobra.Command, args []string) {
 	}
 
 	setupNodeLog(cfg)
-	setupNodeAndRun(cfg)
+	setupNodeAndRun(context.Background(), cfg) // TODO: use proper context
 }
 
 func prepareRootCmd(cmd *cobra.Command) error {
@@ -268,7 +269,7 @@ func setupNodeLog(config harmonyconfig.HarmonyConfig) {
 	}
 }
 
-func setupNodeAndRun(hc harmonyconfig.HarmonyConfig) {
+func setupNodeAndRun(ctx context.Context, hc harmonyconfig.HarmonyConfig) {
 	var err error
 
 	nodeconfigSetShardSchedule(hc)
@@ -435,7 +436,7 @@ func setupNodeAndRun(hc harmonyconfig.HarmonyConfig) {
 
 	currentNode.NodeSyncing()
 
-	if err := currentNode.StartServices(); err != nil {
+	if err := currentNode.StartServices(ctx); err != nil {
 		fmt.Fprint(os.Stderr, err.Error())
 		os.Exit(-1)
 	}
@@ -452,10 +453,10 @@ func setupNodeAndRun(hc harmonyconfig.HarmonyConfig) {
 			Msg("Start Rosetta failed")
 	}
 
-	go listenOSSigAndShutDown(currentNode)
+	go listenOSSigAndShutDown(ctx, currentNode)
 
 	if !hc.General.IsOffline {
-		if err := myHost.Start(); err != nil {
+		if err := myHost.Start(ctx); err != nil {
 			utils.Logger().Fatal().
 				Err(err).
 				Msg("Start p2p host failed")
@@ -1072,19 +1073,21 @@ func setupLocalAccounts(hc harmonyconfig.HarmonyConfig, blacklist map[ethCommon.
 	return uniqueAddresses, nil
 }
 
-func listenOSSigAndShutDown(node *node.Node) {
+func listenOSSigAndShutDown(ctx context.Context, node *node.Node) {
 	// Prepare for graceful shutdown from os signals
-	osSignal := make(chan os.Signal, 1)
-	signal.Notify(osSignal, syscall.SIGINT, syscall.SIGTERM)
-	sig := <-osSignal
-	utils.Logger().Warn().Str("signal", sig.String()).Msg("Gracefully shutting down...")
+	//osSignal := make(chan os.Signal, 1)
+	//signal.Notify(osSignal, syscall.SIGINT, syscall.SIGTERM)
+	ctx, cancel := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
+	_ = cancel // TODO: use cancel to stop all services
+	//sig := <-osSignal
+	utils.Logger().Warn().Err(ctx.Err()).Msg("Gracefully shutting down...")
 	const msg = "Got %s signal. Gracefully shutting down...\n"
-	fmt.Fprintf(os.Stderr, msg, sig)
+	fmt.Fprintf(os.Stderr, msg, ctx.Err())
 
 	go node.ShutDown()
 
 	for i := 10; i > 0; i-- {
-		<-osSignal
+		//<-osSignal
 		if i > 1 {
 			fmt.Printf("Already shutting down, interrupt more to force quit: (times=%v)\n", i-1)
 		}

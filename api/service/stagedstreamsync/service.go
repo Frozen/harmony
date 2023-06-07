@@ -1,6 +1,8 @@
 package stagedstreamsync
 
 import (
+	"context"
+
 	"github.com/harmony-one/harmony/core"
 	"github.com/harmony-one/harmony/p2p"
 )
@@ -18,7 +20,7 @@ func NewService(host p2p.Host, bcs []core.BlockChain, config Config, dbDir strin
 }
 
 // Start starts the service
-func (s *StagedStreamSyncService) Start() error {
+func (s *StagedStreamSyncService) Start(ctx context.Context) error {
 	s.Downloaders.Start()
 	return nil
 }

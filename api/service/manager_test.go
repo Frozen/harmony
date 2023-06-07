@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -54,7 +55,7 @@ func TestManager_StartServices(t *testing.T) {
 		m := &Manager{
 			services: test.services,
 		}
-		err := m.StartServices()
+		err := m.StartServices(context.Background())
 		if assErr := assertError(err, test.err); assErr != nil {
 			t.Errorf("Test %v: unexpected error: %v", i, assErr)
 		}
@@ -123,7 +124,7 @@ func makeTestService(index int, startErrHook, stopErrHook func() error) *testSer
 	}
 }
 
-func (s *testService) Start() error {
+func (s *testService) Start(ctx context.Context) error {
 	if s.startErrHook != nil {
 		if err := s.startErrHook(); err != nil {
 			return err

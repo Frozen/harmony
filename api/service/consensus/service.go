@@ -1,6 +1,8 @@
 package consensus
 
 import (
+	"context"
+
 	msg_pb "github.com/harmony-one/harmony/api/proto/message"
 	"github.com/harmony-one/harmony/consensus"
 	"github.com/harmony-one/harmony/internal/utils"
@@ -19,7 +21,7 @@ func New(consensus *consensus.Consensus) *Service {
 }
 
 // Start starts consensus service.
-func (s *Service) Start() error {
+func (s *Service) Start(ctx context.Context) error {
 	utils.Logger().Info().Msg("[consensus/service] Starting consensus service.")
 	s.stopChan = make(chan struct{})
 	s.consensus.Start(s.stopChan)

@@ -45,7 +45,7 @@ type DisconnectCallback func(conn libp2p_network.Conn) error
 
 // Host is the client + server in p2p network.
 type Host interface {
-	Start() error
+	Start(ctx context.Context) error
 	Close() error
 	GetSelfPeer() Peer
 	AddPeer(*Peer) error
@@ -332,7 +332,7 @@ func (host *HostV2) PubSub() *libp2p_pubsub.PubSub {
 
 // Start start the HostV2 discovery process
 // TODO: move PubSub start handling logic here
-func (host *HostV2) Start() error {
+func (host *HostV2) Start(ctx context.Context) error {
 	host.h.Network().Notify(host)
 	host.SetConnectCallback(host.security.OnConnectCheck)
 	host.SetDisconnectCallback(host.security.OnDisconnectCheck)

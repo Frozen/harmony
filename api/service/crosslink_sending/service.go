@@ -1,6 +1,8 @@
 package crosslink_sending
 
 import (
+	"context"
+
 	"github.com/harmony-one/harmony/core"
 	"github.com/harmony-one/harmony/shard"
 )
@@ -29,13 +31,13 @@ func New(node broadcast, bc core.BlockChain) *Service {
 }
 
 // Start starts service.
-func (s *Service) Start() error {
+func (s *Service) Start(ctx context.Context) error {
 	s.bc.SubscribeChainEvent(s.ch)
-	go s.run()
+	go s.run(ctx)
 	return nil
 }
 
-func (s *Service) run() {
+func (s *Service) run(ctx context.Context) {
 	for {
 		select {
 		case _, ok := <-s.ch:

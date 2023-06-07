@@ -130,7 +130,7 @@ func newService(cfg Config, additionalHandlers ...Handler) *Service {
 }
 
 // Start start the prometheus service
-func (s *Service) Start() error {
+func (s *Service) Start(ctx context.Context) error {
 	go func() {
 		utils.Logger().Info().Str("address", s.server.Addr).Msg("Starting prometheus service")
 		err := s.server.ListenAndServe()

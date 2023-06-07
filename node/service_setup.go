@@ -1,6 +1,7 @@
 package node
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/harmony-one/harmony/api/service"
@@ -37,8 +38,8 @@ func (node *Node) RegisterService(st service.Type, s service.Service) {
 }
 
 // StartServices runs registered services.
-func (node *Node) StartServices() error {
-	return node.serviceManager.StartServices()
+func (node *Node) StartServices(ctx context.Context) error {
+	return node.serviceManager.StartServices(ctx)
 }
 
 // StopServices runs registered services.

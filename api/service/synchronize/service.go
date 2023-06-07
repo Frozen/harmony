@@ -1,6 +1,8 @@
 package synchronize
 
 import (
+	"context"
+
 	"github.com/harmony-one/harmony/core"
 	"github.com/harmony-one/harmony/hmy/downloader"
 	"github.com/harmony-one/harmony/p2p"
@@ -19,7 +21,7 @@ func NewService(host p2p.Host, bcs []core.BlockChain, config downloader.Config) 
 }
 
 // Start start the service
-func (s *Service) Start() error {
+func (s *Service) Start(ctx context.Context) error {
 	s.Downloaders.Start()
 	return nil
 }

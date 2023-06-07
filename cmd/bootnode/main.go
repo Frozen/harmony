@@ -3,10 +3,13 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"os"
+	"os/signal"
 	"path"
+	"syscall"
 
 	"github.com/ethereum/go-ethereum/log"
 	net "github.com/libp2p/go-libp2p/core/network"
@@ -142,7 +145,10 @@ func main() {
 		fmt.Sprintf("/ip4/%s/tcp/%s/p2p/%s", *ip, *port, host.GetID().Pretty()),
 	)
 
-	host.Start()
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer cancel()
+
+	host.Start(ctx)
 
 	if *logConn {
 		host.GetP2PHost().Network().Notify(NewConnLogger(utils.GetLogInstance()))
