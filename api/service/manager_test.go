@@ -55,7 +55,7 @@ func TestManager_StartServices(t *testing.T) {
 		m := &Manager{
 			services: test.services,
 		}
-		err := m.StartServices(context.Background())
+		err := m.StartServices(context.TODO())
 		if assErr := assertError(err, test.err); assErr != nil {
 			t.Errorf("Test %v: unexpected error: %v", i, assErr)
 		}
@@ -126,7 +126,7 @@ func makeTestService(index int, startErrHook, stopErrHook func() error) *testSer
 
 func (s *testService) Start(ctx context.Context) error {
 	if s.startErrHook != nil {
-		if err := s.startErrHook(); err != nil {
+		if err := s.startErrHook(ctx); err != nil {
 			return err
 		}
 	}

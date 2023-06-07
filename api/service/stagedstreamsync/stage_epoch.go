@@ -15,9 +15,8 @@ type StageEpoch struct {
 }
 
 type StageEpochCfg struct {
-	ctx context.Context
-	bc  core.BlockChain
-	db  kv.RwDB
+	bc core.BlockChain
+	db kv.RwDB
 }
 
 func NewStageEpoch(cfg StageEpochCfg) *StageEpoch {
@@ -26,19 +25,18 @@ func NewStageEpoch(cfg StageEpochCfg) *StageEpoch {
 	}
 }
 
-func NewStageEpochCfg(ctx context.Context, bc core.BlockChain, db kv.RwDB) StageEpochCfg {
+func NewStageEpochCfg(bc core.BlockChain, db kv.RwDB) StageEpochCfg {
 	return StageEpochCfg{
-		ctx: ctx,
-		bc:  bc,
-		db:  db,
+		bc: bc,
+		db: db,
 	}
 }
 
 func (sr *StageEpoch) SetStageContext(ctx context.Context) {
-	sr.configs.ctx = ctx
+
 }
 
-func (sr *StageEpoch) Exec(firstCycle bool, invalidBlockRevert bool, s *StageState, reverter Reverter, tx kv.RwTx) error {
+func (sr *StageEpoch) Exec(ctx context.Context, firstCycle bool, invalidBlockRevert bool, s *StageState, reverter Reverter, tx kv.RwTx) error {
 
 	// no need to update epoch chain if we are redoing the stages because of bad block
 	if invalidBlockRevert {
@@ -63,7 +61,7 @@ func (sr *StageEpoch) Exec(firstCycle bool, invalidBlockRevert bool, s *StageSta
 	useInternalTx := tx == nil
 	if useInternalTx {
 		var err error
-		tx, err = sr.configs.db.BeginRw(sr.configs.ctx)
+		tx, err = sr.configs.db.BeginRw(ctx)
 		if err != nil {
 			return err
 		}
@@ -83,7 +81,7 @@ func (sr *StageEpoch) doShortRangeSyncForEpochSync(s *StageState) (int, error) {
 
 	numShortRangeCounterVec.With(s.state.promLabels()).Inc()
 
-	srCtx, cancel := context.WithTimeout(s.state.ctx, ShortRangeTimeout)
+	srCtx, cancel := context.WithTimeout(context.TODO(), ShortRangeTimeout)
 	defer cancel()
 
 	//TODO: merge srHelper with StageEpochConfig

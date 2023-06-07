@@ -54,7 +54,6 @@ func (ib *InvalidBlock) addBadStream(bsID sttypes.StreamID) {
 }
 
 type StagedStreamSync struct {
-	ctx          context.Context
 	bc           core.BlockChain
 	isBeacon     bool
 	isExplorer   bool
@@ -101,7 +100,6 @@ type SyncCycle struct {
 }
 
 func (s *StagedStreamSync) Len() int                    { return len(s.stages) }
-func (s *StagedStreamSync) Context() context.Context    { return s.ctx }
 func (s *StagedStreamSync) Blockchain() core.BlockChain { return s.bc }
 func (s *StagedStreamSync) DB() kv.RwDB                 { return s.db }
 func (s *StagedStreamSync) IsBeacon() bool              { return s.isBeacon }
@@ -249,7 +247,7 @@ func (s *StagedStreamSync) cleanUp(fromStage int, db kv.RwDB, tx kv.RwTx, firstC
 }
 
 // New creates a new StagedStreamSync instance
-func New(ctx context.Context,
+func New(
 	bc core.BlockChain,
 	db kv.RwDB,
 	stagesList []*Stage,
@@ -288,7 +286,6 @@ func New(ctx context.Context,
 	status := newStatus()
 
 	return &StagedStreamSync{
-		ctx:          ctx,
 		bc:           bc,
 		isBeacon:     isBeacon,
 		db:           db,
@@ -309,8 +306,8 @@ func New(ctx context.Context,
 }
 
 // doGetCurrentNumberRequest returns estimated current block number and corresponding stream
-func (s *StagedStreamSync) doGetCurrentNumberRequest() (uint64, sttypes.StreamID, error) {
-	ctx, cancel := context.WithTimeout(s.ctx, 10*time.Second)
+func (s *StagedStreamSync) doGetCurrentNumberRequest(ctx context.Context) (uint64, sttypes.StreamID, error) {
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
 	bn, stid, err := s.protocol.GetCurrentBlockNumber(ctx, syncproto.WithHighPriority())
@@ -338,6 +335,7 @@ func (s *StagedStreamSync) checkHaveEnoughStreams() error {
 
 // SetNewContext sets a new context for all stages
 func (s *StagedStreamSync) SetNewContext(ctx context.Context) error {
+	// TODO: make it work
 	for _, s := range s.stages {
 		s.Handler.SetStageContext(ctx)
 	}
@@ -345,7 +343,7 @@ func (s *StagedStreamSync) SetNewContext(ctx context.Context) error {
 }
 
 // Run runs a full cycle of stages
-func (s *StagedStreamSync) Run(db kv.RwDB, tx kv.RwTx, firstCycle bool) error {
+func (s *StagedStreamSync) Run(ctx context.Context, db kv.RwDB, tx kv.RwTx, firstCycle bool) error {
 	s.prevRevertPoint = nil
 	s.timings = s.timings[:0]
 
@@ -383,7 +381,7 @@ func (s *StagedStreamSync) Run(db kv.RwDB, tx kv.RwTx, firstCycle bool) error {
 			continue
 		}
 
-		if err := s.runStage(stage, db, tx, firstCycle, s.invalidBlock.Active); err != nil {
+		if err := s.runStage(ctx, stage, db, tx, firstCycle, s.invalidBlock.Active); err != nil {
 			utils.Logger().Error().
 				Err(err).
 				Interface("stage id", stage.ID).
@@ -414,7 +412,7 @@ func CreateView(ctx context.Context, db kv.RwDB, tx kv.Tx, f func(tx kv.Tx) erro
 	if tx != nil {
 		return f(tx)
 	}
-	return db.View(context.Background(), func(etx kv.Tx) error {
+	return db.View(ctx, func(etx kv.Tx) error {
 		return f(etx)
 	})
 }
@@ -466,14 +464,14 @@ func printLogs(tx kv.RwTx, timings []Timing) error {
 }
 
 // runStage executes stage
-func (s *StagedStreamSync) runStage(stage *Stage, db kv.RwDB, tx kv.RwTx, firstCycle bool, invalidBlockRevert bool) (err error) {
+func (s *StagedStreamSync) runStage(ctx context.Context, stage *Stage, db kv.RwDB, tx kv.RwTx, firstCycle bool, invalidBlockRevert bool) (err error) {
 	start := time.Now()
 	stageState, err := s.StageState(stage.ID, tx, db)
 	if err != nil {
 		return err
 	}
 
-	if err = stage.Handler.Exec(firstCycle, invalidBlockRevert, stageState, s, tx); err != nil {
+	if err = stage.Handler.Exec(ctx, firstCycle, invalidBlockRevert, stageState, s, tx); err != nil {
 		utils.Logger().Error().
 			Err(err).
 			Interface("stage id", stage.ID).

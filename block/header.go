@@ -84,7 +84,7 @@ func (h Header) MarshalJSON() ([]byte, error) {
 }
 
 // String ..
-func (h Header) String() string {
+func (h *Header) String() string {
 	s, _ := json.Marshal(h)
 	return string(s)
 }

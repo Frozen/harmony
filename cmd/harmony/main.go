@@ -155,7 +155,7 @@ func runHarmonyNode(cmd *cobra.Command, args []string) {
 	}
 
 	setupNodeLog(cfg)
-	setupNodeAndRun(context.Background(), cfg) // TODO: use proper context
+	setupNodeAndRun(context.TODO(), cfg) // TODO: use proper context
 }
 
 func prepareRootCmd(cmd *cobra.Command) error {
