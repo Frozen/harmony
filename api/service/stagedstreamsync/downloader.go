@@ -209,6 +209,7 @@ func (d *Downloader) loop() {
 
 		case <-d.downloadC:
 			addedBN, err := d.stagedSyncInstance.doSync(d.ctx, initSync)
+			fmt.Println("doSync returned", addedBN, err)
 			if err != nil {
 				//TODO: if there is a bad block which can't be resolved
 				if d.stagedSyncInstance.invalidBlock.Active {
