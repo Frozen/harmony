@@ -11,7 +11,6 @@ import (
 	"github.com/harmony-one/harmony/core/types"
 	"github.com/harmony-one/harmony/internal/utils"
 	"github.com/ledgerwatch/erigon-lib/kv"
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/zerolog"
 )
 
@@ -52,10 +51,6 @@ func NewStageStatesCfg(
 	}
 }
 
-func (stg *StageStates) SetStageContext(ctx context.Context) {
-
-}
-
 // Exec progresses States stage in the forward direction
 func (stg *StageStates) Exec(ctx context.Context, firstCycle bool, invalidBlockRevert bool, s *StageState, reverter Reverter, tx kv.RwTx) (err error) {
 
@@ -87,7 +82,7 @@ func (stg *StageStates) Exec(ctx context.Context, firstCycle bool, invalidBlockR
 	// isLastCycle := targetHeight >= maxHeight
 	startTime := time.Now()
 	startBlock := currProgress
-	pl := s.state.promLabels()
+	pl := promLabels(s.state.bc)
 	gbm := s.state.gbm
 
 	// prepare db transactions
@@ -218,19 +213,11 @@ func (stg *StageStates) Exec(ctx context.Context, firstCycle bool, invalidBlockR
 	return nil
 }
 
-func (stg *StageStates) insertChain(gbm *blockDownloadManager,
-	protocol syncProtocol,
-	lbls prometheus.Labels,
-	targetBN uint64) {
-
-}
-
-func (stg *StageStates) saveProgress(s *StageState, tx kv.RwTx) (err error) {
-
+func (stg *StageStates) saveProgress(ctx context.Context, s *StageState, tx kv.RwTx) (err error) {
 	useInternalTx := tx == nil
 	if useInternalTx {
 		var err error
-		tx, err = stg.configs.db.BeginRw(context.Background())
+		tx, err = stg.configs.db.BeginRw(ctx)
 		if err != nil {
 			return err
 		}
@@ -253,10 +240,10 @@ func (stg *StageStates) saveProgress(s *StageState, tx kv.RwTx) (err error) {
 	return nil
 }
 
-func (stg *StageStates) Revert(firstCycle bool, u *RevertState, s *StageState, tx kv.RwTx) (err error) {
+func (stg *StageStates) Revert(ctx context.Context, firstCycle bool, u *RevertState, s *StageState, tx kv.RwTx) (err error) {
 	useInternalTx := tx == nil
 	if useInternalTx {
-		tx, err = stg.configs.db.BeginRw(context.TODO())
+		tx, err = stg.configs.db.BeginRw(ctx)
 		if err != nil {
 			return err
 		}
@@ -275,10 +262,10 @@ func (stg *StageStates) Revert(firstCycle bool, u *RevertState, s *StageState, t
 	return nil
 }
 
-func (stg *StageStates) CleanUp(firstCycle bool, p *CleanUpState, tx kv.RwTx) (err error) {
+func (stg *StageStates) CleanUp(ctx context.Context, firstCycle bool, p *CleanUpState, tx kv.RwTx) (err error) {
 	useInternalTx := tx == nil
 	if useInternalTx {
-		tx, err = stg.configs.db.BeginRw(context.TODO())
+		tx, err = stg.configs.db.BeginRw(ctx)
 		if err != nil {
 			return err
 		}

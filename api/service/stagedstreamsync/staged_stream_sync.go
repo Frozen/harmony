@@ -230,7 +230,7 @@ func (s *StagedStreamSync) StageState(stage SyncStageID, tx kv.Tx, db kv.RwDB) (
 }
 
 // cleanUp cleans up the stage by calling pruneStage
-func (s *StagedStreamSync) cleanUp(fromStage int, db kv.RwDB, tx kv.RwTx, firstCycle bool) error {
+func (s *StagedStreamSync) cleanUp(ctx context.Context, fromStage int, db kv.RwDB, tx kv.RwTx, firstCycle bool) error {
 	found := false
 	for i := 0; i < len(s.pruningOrder); i++ {
 		if s.pruningOrder[i].ID == s.stages[fromStage].ID {
@@ -239,7 +239,7 @@ func (s *StagedStreamSync) cleanUp(fromStage int, db kv.RwDB, tx kv.RwTx, firstC
 		if !found || s.pruningOrder[i] == nil || s.pruningOrder[i].Disabled {
 			continue
 		}
-		if err := s.pruneStage(firstCycle, s.pruningOrder[i], db, tx); err != nil {
+		if err := s.pruneStage(ctx, firstCycle, s.pruningOrder[i], db, tx); err != nil {
 			panic(err)
 		}
 	}
@@ -317,10 +317,13 @@ func (s *StagedStreamSync) doGetCurrentNumberRequest(ctx context.Context) (uint6
 	return bn, stid, nil
 }
 
+type shardIDGetter interface {
+	ShardID() uint32
+}
+
 // promLabels returns a prometheus labels for current shard id
-func (s *StagedStreamSync) promLabels() prometheus.Labels {
-	sid := s.bc.ShardID()
-	return prometheus.Labels{"ShardID": fmt.Sprintf("%d", sid)}
+func promLabels(bc shardIDGetter) prometheus.Labels {
+	return prometheus.Labels{"ShardID": fmt.Sprintf("%d", bc.ShardID())}
 }
 
 // checkHaveEnoughStreams checks whether node is connected to certain number of streams
@@ -329,15 +332,6 @@ func (s *StagedStreamSync) checkHaveEnoughStreams() error {
 	if numStreams < s.config.MinStreams {
 		return fmt.Errorf("number of streams smaller than minimum: %v < %v",
 			numStreams, s.config.MinStreams)
-	}
-	return nil
-}
-
-// SetNewContext sets a new context for all stages
-func (s *StagedStreamSync) SetNewContext(ctx context.Context) error {
-	// TODO: make it work
-	for _, s := range s.stages {
-		s.Handler.SetStageContext(ctx)
 	}
 	return nil
 }
@@ -356,7 +350,7 @@ func (s *StagedStreamSync) Run(ctx context.Context, db kv.RwDB, tx kv.RwTx, firs
 					if s.revertOrder[j] == nil || s.revertOrder[j].Disabled {
 						continue
 					}
-					if err := s.revertStage(firstCycle, s.revertOrder[j], db, tx); err != nil {
+					if err := s.revertStage(ctx, firstCycle, s.revertOrder[j], db, tx); err != nil {
 						utils.Logger().Error().
 							Err(err).
 							Interface("stage id", s.revertOrder[j].ID).
@@ -391,7 +385,7 @@ func (s *StagedStreamSync) Run(ctx context.Context, db kv.RwDB, tx kv.RwTx, firs
 		s.NextStage()
 	}
 
-	if err := s.cleanUp(0, db, tx, firstCycle); err != nil {
+	if err := s.cleanUp(ctx, 0, db, tx, firstCycle); err != nil {
 		utils.Logger().Error().
 			Err(err).
 			Msgf(WrapStagedSyncMsg("stages cleanup failed"))
@@ -491,7 +485,7 @@ func (s *StagedStreamSync) runStage(ctx context.Context, stage *Stage, db kv.RwD
 }
 
 // revertStage reverts stage
-func (s *StagedStreamSync) revertStage(firstCycle bool, stage *Stage, db kv.RwDB, tx kv.RwTx) error {
+func (s *StagedStreamSync) revertStage(ctx context.Context, firstCycle bool, stage *Stage, db kv.RwDB, tx kv.RwTx) error {
 	start := time.Now()
 	stageState, err := s.StageState(stage.ID, tx, db)
 	if err != nil {
@@ -508,7 +502,7 @@ func (s *StagedStreamSync) revertStage(firstCycle bool, stage *Stage, db kv.RwDB
 		return err
 	}
 
-	err = stage.Handler.Revert(firstCycle, revert, stageState, tx)
+	err = stage.Handler.Revert(ctx, firstCycle, revert, stageState, tx)
 	if err != nil {
 		return fmt.Errorf("[%s] %w", s.LogPrefix(), err)
 	}
@@ -524,7 +518,7 @@ func (s *StagedStreamSync) revertStage(firstCycle bool, stage *Stage, db kv.RwDB
 }
 
 // pruneStage cleans up the stage and logs the timing
-func (s *StagedStreamSync) pruneStage(firstCycle bool, stage *Stage, db kv.RwDB, tx kv.RwTx) error {
+func (s *StagedStreamSync) pruneStage(ctx context.Context, firstCycle bool, stage *Stage, db kv.RwDB, tx kv.RwTx) error {
 	start := time.Now()
 
 	stageState, err := s.StageState(stage.ID, tx, db)
@@ -540,7 +534,7 @@ func (s *StagedStreamSync) pruneStage(firstCycle bool, stage *Stage, db kv.RwDB,
 		return err
 	}
 
-	err = stage.Handler.CleanUp(firstCycle, prune, tx)
+	err = stage.Handler.CleanUp(ctx, firstCycle, prune, tx)
 	if err != nil {
 		return fmt.Errorf("[%s] %w", s.LogPrefix(), err)
 	}

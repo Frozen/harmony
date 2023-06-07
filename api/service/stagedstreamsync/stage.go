@@ -22,15 +22,12 @@ type StageHandler interface {
 	// * firstCycle - is it the first cycle of syncing.
 	// * u - contains information about the revert itself.
 	// * s - represents the state of this stage at the beginning of revert.
-	Revert(firstCycle bool, u *RevertState, s *StageState, tx kv.RwTx) error
+	Revert(ctx context.Context, firstCycle bool, u *RevertState, s *StageState, tx kv.RwTx) error
 
 	// CleanUp is the execution function for the stage to prune old data.
 	// * firstCycle - is it the first cycle of syncing.
 	// * p - is the current state of the stage and contains stage data.
-	CleanUp(firstCycle bool, p *CleanUpState, tx kv.RwTx) error
-
-	// SetStageContext updates the context for stage
-	SetStageContext(ctx context.Context)
+	CleanUp(ctx context.Context, firstCycle bool, p *CleanUpState, tx kv.RwTx) error
 }
 
 // Stage is a single sync stage in staged sync.

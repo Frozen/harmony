@@ -26,10 +26,6 @@ func NewStageFinishCfg(db kv.RwDB) StageFinishCfg {
 	}
 }
 
-func (finish *StageFinish) SetStageContext(ctx context.Context) {
-
-}
-
 func (finish *StageFinish) Exec(ctx context.Context, firstCycle bool, invalidBlockRevert bool, s *StageState, reverter Reverter, tx kv.RwTx) error {
 	useInternalTx := tx == nil
 	if useInternalTx {
@@ -52,7 +48,7 @@ func (finish *StageFinish) Exec(ctx context.Context, firstCycle bool, invalidBlo
 	return nil
 }
 
-func (finish *StageFinish) Revert(firstCycle bool, u *RevertState, s *StageState, tx kv.RwTx) (err error) {
+func (finish *StageFinish) Revert(ctx context.Context, firstCycle bool, u *RevertState, s *StageState, tx kv.RwTx) (err error) {
 	useInternalTx := tx == nil
 	if useInternalTx {
 		tx, err = finish.configs.db.BeginRw(context.TODO())
@@ -74,7 +70,7 @@ func (finish *StageFinish) Revert(firstCycle bool, u *RevertState, s *StageState
 	return nil
 }
 
-func (finish *StageFinish) CleanUp(firstCycle bool, p *CleanUpState, tx kv.RwTx) (err error) {
+func (finish *StageFinish) CleanUp(ctx context.Context, firstCycle bool, p *CleanUpState, tx kv.RwTx) (err error) {
 	useInternalTx := tx == nil
 	if useInternalTx {
 		tx, err = finish.configs.db.BeginRw(context.TODO())

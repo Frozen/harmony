@@ -33,10 +33,6 @@ func NewStageShortRangeCfg(bc core.BlockChain, db kv.RwDB) StageShortRangeCfg {
 	}
 }
 
-func (sr *StageShortRange) SetStageContext(ctx context.Context) {
-
-}
-
 func (sr *StageShortRange) Exec(ctx context.Context, firstCycle bool, invalidBlockRevert bool, s *StageState, reverter Reverter, tx kv.RwTx) error {
 
 	// no need to do short range if we are redoing the stages because of bad block
@@ -54,7 +50,7 @@ func (sr *StageShortRange) Exec(ctx context.Context, firstCycle bool, invalidBlo
 	}
 
 	// do short range sync
-	n, err := sr.doShortRangeSync(s)
+	n, err := sr.doShortRangeSync(ctx, s)
 	s.state.inserted = n
 	if err != nil {
 		return err
@@ -63,7 +59,7 @@ func (sr *StageShortRange) Exec(ctx context.Context, firstCycle bool, invalidBlo
 	useInternalTx := tx == nil
 	if useInternalTx {
 		var err error
-		tx, err = sr.configs.db.BeginRw(context.TODO())
+		tx, err = sr.configs.db.BeginRw(ctx)
 		if err != nil {
 			return err
 		}
@@ -85,11 +81,9 @@ func (sr *StageShortRange) Exec(ctx context.Context, firstCycle bool, invalidBlo
 // 1. Obtain the block hashes and compute the longest hash chain..
 // 2. Get blocks by hashes from computed hash chain.
 // 3. Insert the blocks to blockchain.
-func (sr *StageShortRange) doShortRangeSync(s *StageState) (int, error) {
-
-	numShortRangeCounterVec.With(s.state.promLabels()).Inc()
-
-	srCtx, cancel := context.WithTimeout(context.TODO(), ShortRangeTimeout)
+func (sr *StageShortRange) doShortRangeSync(ctx context.Context, s *StageState) (int, error) {
+	numShortRangeCounterVec.With(promLabels(s.state.bc)).Inc()
+	srCtx, cancel := context.WithTimeout(ctx, ShortRangeTimeout)
 	defer cancel()
 
 	sh := &srHelper{
@@ -140,7 +134,7 @@ func (sr *StageShortRange) doShortRangeSync(s *StageState) (int, error) {
 	utils.Logger().Info().Int("num blocks", len(blocks)).Msg("getBlockByHashes result")
 
 	n, err := verifyAndInsertBlocks(sr.configs.bc, blocks)
-	numBlocksInsertedShortRangeHistogramVec.With(s.state.promLabels()).Observe(float64(n))
+	numBlocksInsertedShortRangeHistogramVec.With(promLabels(s.state.bc)).Observe(float64(n))
 	if err != nil {
 		utils.Logger().Warn().Err(err).Int("blocks inserted", n).Msg("Insert block failed")
 		if sh.blameAllStreams(blocks, n, err) {
@@ -157,10 +151,10 @@ func (sr *StageShortRange) doShortRangeSync(s *StageState) (int, error) {
 	return n, nil
 }
 
-func (sr *StageShortRange) Revert(firstCycle bool, u *RevertState, s *StageState, tx kv.RwTx) (err error) {
+func (sr *StageShortRange) Revert(ctx context.Context, firstCycle bool, u *RevertState, s *StageState, tx kv.RwTx) (err error) {
 	useInternalTx := tx == nil
 	if useInternalTx {
-		tx, err = sr.configs.db.BeginRw(context.Background())
+		tx, err = sr.configs.db.BeginRw(ctx)
 		if err != nil {
 			return err
 		}
@@ -179,10 +173,10 @@ func (sr *StageShortRange) Revert(firstCycle bool, u *RevertState, s *StageState
 	return nil
 }
 
-func (sr *StageShortRange) CleanUp(firstCycle bool, p *CleanUpState, tx kv.RwTx) (err error) {
+func (sr *StageShortRange) CleanUp(ctx context.Context, firstCycle bool, p *CleanUpState, tx kv.RwTx) (err error) {
 	useInternalTx := tx == nil
 	if useInternalTx {
-		tx, err = sr.configs.db.BeginRw(context.Background())
+		tx, err = sr.configs.db.BeginRw(ctx)
 		if err != nil {
 			return err
 		}

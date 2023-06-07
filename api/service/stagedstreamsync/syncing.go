@@ -189,15 +189,12 @@ func (s *StagedStreamSync) doSync(downloaderContext context.Context, initSync bo
 
 	for {
 		ctx, cancel := context.WithCancel(downloaderContext)
-		s.SetNewContext(ctx)
-
 		n, err := s.doSyncCycle(ctx, initSync)
+		cancel()
 		if err != nil {
-			pl := s.promLabels()
+			pl := promLabels(s.bc)
 			pl["error"] = err.Error()
 			numFailedDownloadCounterVec.With(pl).Inc()
-
-			cancel()
 			return totalInserted + n, err
 		}
 		cancel()

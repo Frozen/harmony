@@ -32,10 +32,6 @@ func NewStageEpochCfg(bc core.BlockChain, db kv.RwDB) StageEpochCfg {
 	}
 }
 
-func (sr *StageEpoch) SetStageContext(ctx context.Context) {
-
-}
-
 func (sr *StageEpoch) Exec(ctx context.Context, firstCycle bool, invalidBlockRevert bool, s *StageState, reverter Reverter, tx kv.RwTx) error {
 
 	// no need to update epoch chain if we are redoing the stages because of bad block
@@ -52,7 +48,7 @@ func (sr *StageEpoch) Exec(ctx context.Context, firstCycle bool, invalidBlockRev
 	}
 
 	// doShortRangeSyncForEpochSync
-	n, err := sr.doShortRangeSyncForEpochSync(s)
+	n, err := sr.doShortRangeSyncForEpochSync(ctx, s)
 	s.state.inserted = n
 	if err != nil {
 		return err
@@ -77,11 +73,9 @@ func (sr *StageEpoch) Exec(ctx context.Context, firstCycle bool, invalidBlockRev
 	return nil
 }
 
-func (sr *StageEpoch) doShortRangeSyncForEpochSync(s *StageState) (int, error) {
-
-	numShortRangeCounterVec.With(s.state.promLabels()).Inc()
-
-	srCtx, cancel := context.WithTimeout(context.TODO(), ShortRangeTimeout)
+func (sr *StageEpoch) doShortRangeSyncForEpochSync(ctx context.Context, s *StageState) (int, error) {
+	numShortRangeCounterVec.With(promLabels(s.state.bc)).Inc()
+	srCtx, cancel := context.WithTimeout(ctx, ShortRangeTimeout)
 	defer cancel()
 
 	//TODO: merge srHelper with StageEpochConfig
@@ -143,7 +137,7 @@ func (sr *StageEpoch) doShortRangeSyncForEpochSync(s *StageState) (int, error) {
 	}
 
 	n, err := s.state.bc.InsertChain(blocks, true)
-	numBlocksInsertedShortRangeHistogramVec.With(s.state.promLabels()).Observe(float64(n))
+	numBlocksInsertedShortRangeHistogramVec.With(promLabels(s.state.bc)).Observe(float64(n))
 	if err != nil {
 		utils.Logger().Info().Err(err).Int("blocks inserted", n).Msg("Insert block failed")
 		sh.removeStreams(streamID) // Data provided by remote nodes is corrupted
@@ -155,10 +149,10 @@ func (sr *StageEpoch) doShortRangeSyncForEpochSync(s *StageState) (int, error) {
 	return n, nil
 }
 
-func (sr *StageEpoch) Revert(firstCycle bool, u *RevertState, s *StageState, tx kv.RwTx) (err error) {
+func (sr *StageEpoch) Revert(ctx context.Context, firstCycle bool, u *RevertState, s *StageState, tx kv.RwTx) (err error) {
 	useInternalTx := tx == nil
 	if useInternalTx {
-		tx, err = sr.configs.db.BeginRw(context.Background())
+		tx, err = sr.configs.db.BeginRw(ctx)
 		if err != nil {
 			return err
 		}
@@ -177,10 +171,10 @@ func (sr *StageEpoch) Revert(firstCycle bool, u *RevertState, s *StageState, tx 
 	return nil
 }
 
-func (sr *StageEpoch) CleanUp(firstCycle bool, p *CleanUpState, tx kv.RwTx) (err error) {
+func (sr *StageEpoch) CleanUp(ctx context.Context, firstCycle bool, p *CleanUpState, tx kv.RwTx) (err error) {
 	useInternalTx := tx == nil
 	if useInternalTx {
-		tx, err = sr.configs.db.BeginRw(context.Background())
+		tx, err = sr.configs.db.BeginRw(ctx)
 		if err != nil {
 			return err
 		}

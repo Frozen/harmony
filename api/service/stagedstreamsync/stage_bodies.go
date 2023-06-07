@@ -46,17 +46,13 @@ func NewStageBodiesCfg(bc core.BlockChain, db kv.RwDB, blockDBs []kv.RwDB, concu
 	}
 }
 
-func (b *StageBodies) SetStageContext(ctx context.Context) {
-
-}
-
 // Exec progresses Bodies stage in the forward direction
 func (b *StageBodies) Exec(ctx context.Context, firstCycle bool, invalidBlockRevert bool, s *StageState, reverter Reverter, tx kv.RwTx) (err error) {
 
 	useInternalTx := tx == nil
 
 	if invalidBlockRevert {
-		return b.redownloadBadBlock(s)
+		return b.redownloadBadBlock(ctx, s)
 	}
 
 	// for short range sync, skip this stage
@@ -84,7 +80,7 @@ func (b *StageBodies) Exec(ctx context.Context, firstCycle bool, invalidBlockRev
 	}
 
 	if currProgress == 0 {
-		if err := b.cleanAllBlockDBs(); err != nil {
+		if err := b.cleanAllBlockDBs(ctx); err != nil {
 			return err
 		}
 		currProgress = currentHead
@@ -155,7 +151,7 @@ func (b *StageBodies) runBlockWorkerLoop(ctx context.Context, gbm *blockDownload
 			}
 		}
 
-		blockBytes, sigBytes, stid, err := b.downloadRawBlocks(batch)
+		blockBytes, sigBytes, stid, err := b.downloadRawBlocks(ctx, batch)
 		if err != nil {
 			if !errors.Is(err, context.Canceled) {
 				b.configs.protocol.StreamFailed(stid, "downloadRawBlocks failed")
@@ -196,7 +192,7 @@ func (b *StageBodies) runBlockWorkerLoop(ctx context.Context, gbm *blockDownload
 }
 
 // redownloadBadBlock tries to redownload the bad block from other streams
-func (b *StageBodies) redownloadBadBlock(s *StageState) error {
+func (b *StageBodies) redownloadBadBlock(ctx context.Context, s *StageState) error {
 
 	batch := make([]uint64, 1)
 	batch = append(batch, s.state.invalidBlock.Number)
@@ -205,7 +201,7 @@ func (b *StageBodies) redownloadBadBlock(s *StageState) error {
 		if b.configs.protocol.NumStreams() == 0 {
 			return errors.Errorf("re-download bad block from all streams failed")
 		}
-		blockBytes, sigBytes, stid, err := b.downloadRawBlocks(batch)
+		blockBytes, sigBytes, stid, err := b.downloadRawBlocks(ctx, batch)
 		if err != nil {
 			if !errors.Is(err, context.Canceled) {
 				b.configs.protocol.StreamFailed(stid, "tried to re-download bad block from this stream, but downloadRawBlocks failed")
@@ -251,8 +247,8 @@ func (b *StageBodies) downloadBlocks(bns []uint64) ([]*types.Block, sttypes.Stre
 	return blocks, stid, nil
 }
 
-func (b *StageBodies) downloadRawBlocks(bns []uint64) ([][]byte, [][]byte, sttypes.StreamID, error) {
-	ctx, cancel := context.WithTimeout(context.TODO(), 10*time.Second)
+func (b *StageBodies) downloadRawBlocks(ctx context.Context, bns []uint64) ([][]byte, [][]byte, sttypes.StreamID, error) {
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
 	return b.configs.protocol.GetRawBlocksByNumber(ctx, bns)
@@ -339,9 +335,9 @@ func (b *StageBodies) saveProgress(s *StageState, progress uint64, tx kv.RwTx) (
 	return nil
 }
 
-func (b *StageBodies) cleanBlocksDB(loopID int) (err error) {
+func (b *StageBodies) cleanBlocksDB(ctx context.Context, loopID int) (err error) {
 
-	tx, errb := b.configs.blockDBs[loopID].BeginRw(context.TODO())
+	tx, errb := b.configs.blockDBs[loopID].BeginRw(ctx)
 	if errb != nil {
 		return errb
 	}
@@ -369,26 +365,26 @@ func (b *StageBodies) cleanBlocksDB(loopID int) (err error) {
 	return nil
 }
 
-func (b *StageBodies) cleanAllBlockDBs() (err error) {
+func (b *StageBodies) cleanAllBlockDBs(ctx context.Context) (err error) {
 	//clean all blocks DBs
 	for i := 0; i < b.configs.concurrency; i++ {
-		if err := b.cleanBlocksDB(i); err != nil {
+		if err := b.cleanBlocksDB(ctx, i); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (b *StageBodies) Revert(firstCycle bool, u *RevertState, s *StageState, tx kv.RwTx) (err error) {
+func (b *StageBodies) Revert(ctx context.Context, firstCycle bool, u *RevertState, s *StageState, tx kv.RwTx) (err error) {
 
 	//clean all blocks DBs
-	if err := b.cleanAllBlockDBs(); err != nil {
+	if err := b.cleanAllBlockDBs(ctx); err != nil {
 		return err
 	}
 
 	useInternalTx := tx == nil
 	if useInternalTx {
-		tx, err = b.configs.db.BeginRw(context.TODO())
+		tx, err = b.configs.db.BeginRw(ctx)
 		if err != nil {
 			return err
 		}
@@ -415,10 +411,10 @@ func (b *StageBodies) Revert(firstCycle bool, u *RevertState, s *StageState, tx 
 	return nil
 }
 
-func (b *StageBodies) CleanUp(firstCycle bool, p *CleanUpState, tx kv.RwTx) (err error) {
+func (b *StageBodies) CleanUp(ctx context.Context, firstCycle bool, p *CleanUpState, tx kv.RwTx) (err error) {
 
 	//clean all blocks DBs
-	if err := b.cleanAllBlockDBs(); err != nil {
+	if err := b.cleanAllBlockDBs(ctx); err != nil {
 		return err
 	}
 

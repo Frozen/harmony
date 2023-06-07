@@ -30,10 +30,6 @@ func NewStageHeadersCfg(bc core.BlockChain, db kv.RwDB) StageHeadsCfg {
 	}
 }
 
-func (heads *StageHeads) SetStageContext(ctx context.Context) {
-
-}
-
 func (heads *StageHeads) Exec(ctx context.Context, firstCycle bool, invalidBlockRevert bool, s *StageState, reverter Reverter, tx kv.RwTx) error {
 
 	// no need to update target if we are redoing the stages because of bad block
@@ -112,7 +108,7 @@ func (heads *StageHeads) Exec(ctx context.Context, firstCycle bool, invalidBlock
 	return nil
 }
 
-func (heads *StageHeads) Revert(firstCycle bool, u *RevertState, s *StageState, tx kv.RwTx) (err error) {
+func (heads *StageHeads) Revert(ctx context.Context, firstCycle bool, u *RevertState, s *StageState, tx kv.RwTx) (err error) {
 	useInternalTx := tx == nil
 	if useInternalTx {
 		tx, err = heads.configs.db.BeginRw(context.Background())
@@ -134,7 +130,7 @@ func (heads *StageHeads) Revert(firstCycle bool, u *RevertState, s *StageState, 
 	return nil
 }
 
-func (heads *StageHeads) CleanUp(firstCycle bool, p *CleanUpState, tx kv.RwTx) (err error) {
+func (heads *StageHeads) CleanUp(ctx context.Context, firstCycle bool, p *CleanUpState, tx kv.RwTx) (err error) {
 	useInternalTx := tx == nil
 	if useInternalTx {
 		tx, err = heads.configs.db.BeginRw(context.Background())
