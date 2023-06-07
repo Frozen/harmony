@@ -159,7 +159,7 @@ func GetBlockDbPath(beacon bool, loopID int, dbDir string) string {
 // One LongRangeSync consists of several iterations.
 // For each iteration, estimate the current block number, then fetch block & insert to blockchain
 func (s *StagedStreamSync) doSync(downloaderContext context.Context, initSync bool) (int, error) {
-
+	fmt.Printf("doSync initSync %v %v\n", initSync, downloaderContext.Err())
 	var totalInserted int
 
 	s.initSync = initSync
