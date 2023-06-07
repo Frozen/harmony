@@ -16,7 +16,7 @@ type StageHandler interface {
 	// * invalidBlockRevert - whether the execution is to solve the invalid block
 	// * s - is the current state of the stage and contains stage data.
 	// * reverter - if the stage needs to cause reverting, `reverter` methods can be used.
-	Exec(firstCycle bool, invalidBlockRevert bool, s *StageState, reverter Reverter, tx kv.RwTx) error
+	Exec(ctx context.Context, firstCycle bool, invalidBlockRevert bool, s *StageState, reverter Reverter, tx kv.RwTx) error
 
 	// Revert is the reverting logic of the stage.
 	// * firstCycle - is it the first cycle of syncing.

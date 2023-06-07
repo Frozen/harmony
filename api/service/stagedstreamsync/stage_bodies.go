@@ -17,8 +17,8 @@ import (
 type StageBodies struct {
 	configs StageBodiesCfg
 }
+
 type StageBodiesCfg struct {
-	ctx         context.Context
 	bc          core.BlockChain
 	db          kv.RwDB
 	blockDBs    []kv.RwDB
@@ -34,9 +34,8 @@ func NewStageBodies(cfg StageBodiesCfg) *StageBodies {
 	}
 }
 
-func NewStageBodiesCfg(ctx context.Context, bc core.BlockChain, db kv.RwDB, blockDBs []kv.RwDB, concurrency int, protocol syncProtocol, isBeacon bool, logProgress bool) StageBodiesCfg {
+func NewStageBodiesCfg(bc core.BlockChain, db kv.RwDB, blockDBs []kv.RwDB, concurrency int, protocol syncProtocol, isBeacon bool, logProgress bool) StageBodiesCfg {
 	return StageBodiesCfg{
-		ctx:         ctx,
 		bc:          bc,
 		db:          db,
 		blockDBs:    blockDBs,
@@ -48,11 +47,11 @@ func NewStageBodiesCfg(ctx context.Context, bc core.BlockChain, db kv.RwDB, bloc
 }
 
 func (b *StageBodies) SetStageContext(ctx context.Context) {
-	b.configs.ctx = ctx
+
 }
 
 // Exec progresses Bodies stage in the forward direction
-func (b *StageBodies) Exec(firstCycle bool, invalidBlockRevert bool, s *StageState, reverter Reverter, tx kv.RwTx) (err error) {
+func (b *StageBodies) Exec(ctx context.Context, firstCycle bool, invalidBlockRevert bool, s *StageState, reverter Reverter, tx kv.RwTx) (err error) {
 
 	useInternalTx := tx == nil
 
@@ -75,7 +74,7 @@ func (b *StageBodies) Exec(firstCycle bool, invalidBlockRevert bool, s *StageSta
 	// isBeacon := s.state.isBeacon
 	// isLastCycle := targetHeight >= maxHeight
 
-	if errV := CreateView(b.configs.ctx, b.configs.db, tx, func(etx kv.Tx) error {
+	if errV := CreateView(ctx, b.configs.db, tx, func(etx kv.Tx) error {
 		if currProgress, err = s.CurrentStageProgress(etx); err != nil {
 			return err
 		}
@@ -119,7 +118,7 @@ func (b *StageBodies) Exec(firstCycle bool, invalidBlockRevert bool, s *StageSta
 
 	for i := 0; i != s.state.config.Concurrency; i++ {
 		wg.Add(1)
-		go b.runBlockWorkerLoop(s.state.gbm, &wg, i, startTime)
+		go b.runBlockWorkerLoop(ctx, s.state.gbm, &wg, i, startTime)
 	}
 
 	wg.Wait()
@@ -134,7 +133,7 @@ func (b *StageBodies) Exec(firstCycle bool, invalidBlockRevert bool, s *StageSta
 }
 
 // runBlockWorkerLoop creates a work loop for download blocks
-func (b *StageBodies) runBlockWorkerLoop(gbm *blockDownloadManager, wg *sync.WaitGroup, loopID int, startTime time.Time) {
+func (b *StageBodies) runBlockWorkerLoop(ctx context.Context, gbm *blockDownloadManager, wg *sync.WaitGroup, loopID int, startTime time.Time) {
 
 	currentBlock := int(b.configs.bc.CurrentBlock().NumberU64())
 
@@ -142,14 +141,14 @@ func (b *StageBodies) runBlockWorkerLoop(gbm *blockDownloadManager, wg *sync.Wai
 
 	for {
 		select {
-		case <-b.configs.ctx.Done():
+		case <-ctx.Done():
 			return
 		default:
 		}
 		batch := gbm.GetNextBatch()
 		if len(batch) == 0 {
 			select {
-			case <-b.configs.ctx.Done():
+			case <-ctx.Done():
 				return
 			case <-time.After(100 * time.Millisecond):
 				return
@@ -239,7 +238,7 @@ func (b *StageBodies) redownloadBadBlock(s *StageState) error {
 }
 
 func (b *StageBodies) downloadBlocks(bns []uint64) ([]*types.Block, sttypes.StreamID, error) {
-	ctx, cancel := context.WithTimeout(b.configs.ctx, 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.TODO(), 10*time.Second)
 	defer cancel()
 
 	blocks, stid, err := b.configs.protocol.GetBlocksByNumber(ctx, bns)
@@ -253,7 +252,7 @@ func (b *StageBodies) downloadBlocks(bns []uint64) ([]*types.Block, sttypes.Stre
 }
 
 func (b *StageBodies) downloadRawBlocks(bns []uint64) ([][]byte, [][]byte, sttypes.StreamID, error) {
-	ctx, cancel := context.WithTimeout(b.configs.ctx, 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.TODO(), 10*time.Second)
 	defer cancel()
 
 	return b.configs.protocol.GetRawBlocksByNumber(ctx, bns)
@@ -342,7 +341,7 @@ func (b *StageBodies) saveProgress(s *StageState, progress uint64, tx kv.RwTx) (
 
 func (b *StageBodies) cleanBlocksDB(loopID int) (err error) {
 
-	tx, errb := b.configs.blockDBs[loopID].BeginRw(b.configs.ctx)
+	tx, errb := b.configs.blockDBs[loopID].BeginRw(context.TODO())
 	if errb != nil {
 		return errb
 	}
@@ -389,7 +388,7 @@ func (b *StageBodies) Revert(firstCycle bool, u *RevertState, s *StageState, tx 
 
 	useInternalTx := tx == nil
 	if useInternalTx {
-		tx, err = b.configs.db.BeginRw(b.configs.ctx)
+		tx, err = b.configs.db.BeginRw(context.TODO())
 		if err != nil {
 			return err
 		}

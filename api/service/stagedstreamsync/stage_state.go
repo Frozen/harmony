@@ -18,8 +18,8 @@ import (
 type StageStates struct {
 	configs StageStatesCfg
 }
+
 type StageStatesCfg struct {
-	ctx         context.Context
 	bc          core.BlockChain
 	db          kv.RwDB
 	blockDBs    []kv.RwDB
@@ -34,7 +34,7 @@ func NewStageStates(cfg StageStatesCfg) *StageStates {
 	}
 }
 
-func NewStageStatesCfg(ctx context.Context,
+func NewStageStatesCfg(
 	bc core.BlockChain,
 	db kv.RwDB,
 	blockDBs []kv.RwDB,
@@ -43,7 +43,6 @@ func NewStageStatesCfg(ctx context.Context,
 	logProgress bool) StageStatesCfg {
 
 	return StageStatesCfg{
-		ctx:         ctx,
 		bc:          bc,
 		db:          db,
 		blockDBs:    blockDBs,
@@ -54,11 +53,11 @@ func NewStageStatesCfg(ctx context.Context,
 }
 
 func (stg *StageStates) SetStageContext(ctx context.Context) {
-	stg.configs.ctx = ctx
+
 }
 
 // Exec progresses States stage in the forward direction
-func (stg *StageStates) Exec(firstCycle bool, invalidBlockRevert bool, s *StageState, reverter Reverter, tx kv.RwTx) (err error) {
+func (stg *StageStates) Exec(ctx context.Context, firstCycle bool, invalidBlockRevert bool, s *StageState, reverter Reverter, tx kv.RwTx) (err error) {
 
 	// for short range sync, skip this step
 	if !s.state.initSync {
@@ -78,7 +77,7 @@ func (stg *StageStates) Exec(firstCycle bool, invalidBlockRevert bool, s *StageS
 	useInternalTx := tx == nil
 	if useInternalTx {
 		var err error
-		tx, err = stg.configs.db.BeginRw(stg.configs.ctx)
+		tx, err = stg.configs.db.BeginRw(ctx)
 		if err != nil {
 			return err
 		}
@@ -257,7 +256,7 @@ func (stg *StageStates) saveProgress(s *StageState, tx kv.RwTx) (err error) {
 func (stg *StageStates) Revert(firstCycle bool, u *RevertState, s *StageState, tx kv.RwTx) (err error) {
 	useInternalTx := tx == nil
 	if useInternalTx {
-		tx, err = stg.configs.db.BeginRw(stg.configs.ctx)
+		tx, err = stg.configs.db.BeginRw(context.TODO())
 		if err != nil {
 			return err
 		}
@@ -279,7 +278,7 @@ func (stg *StageStates) Revert(firstCycle bool, u *RevertState, s *StageState, t
 func (stg *StageStates) CleanUp(firstCycle bool, p *CleanUpState, tx kv.RwTx) (err error) {
 	useInternalTx := tx == nil
 	if useInternalTx {
-		tx, err = stg.configs.db.BeginRw(stg.configs.ctx)
+		tx, err = stg.configs.db.BeginRw(context.TODO())
 		if err != nil {
 			return err
 		}

@@ -16,9 +16,8 @@ type StageShortRange struct {
 }
 
 type StageShortRangeCfg struct {
-	ctx context.Context
-	bc  core.BlockChain
-	db  kv.RwDB
+	bc core.BlockChain
+	db kv.RwDB
 }
 
 func NewStageShortRange(cfg StageShortRangeCfg) *StageShortRange {
@@ -27,19 +26,18 @@ func NewStageShortRange(cfg StageShortRangeCfg) *StageShortRange {
 	}
 }
 
-func NewStageShortRangeCfg(ctx context.Context, bc core.BlockChain, db kv.RwDB) StageShortRangeCfg {
+func NewStageShortRangeCfg(bc core.BlockChain, db kv.RwDB) StageShortRangeCfg {
 	return StageShortRangeCfg{
-		ctx: ctx,
-		bc:  bc,
-		db:  db,
+		bc: bc,
+		db: db,
 	}
 }
 
 func (sr *StageShortRange) SetStageContext(ctx context.Context) {
-	sr.configs.ctx = ctx
+
 }
 
-func (sr *StageShortRange) Exec(firstCycle bool, invalidBlockRevert bool, s *StageState, reverter Reverter, tx kv.RwTx) error {
+func (sr *StageShortRange) Exec(ctx context.Context, firstCycle bool, invalidBlockRevert bool, s *StageState, reverter Reverter, tx kv.RwTx) error {
 
 	// no need to do short range if we are redoing the stages because of bad block
 	if invalidBlockRevert {
@@ -65,7 +63,7 @@ func (sr *StageShortRange) Exec(firstCycle bool, invalidBlockRevert bool, s *Sta
 	useInternalTx := tx == nil
 	if useInternalTx {
 		var err error
-		tx, err = sr.configs.db.BeginRw(sr.configs.ctx)
+		tx, err = sr.configs.db.BeginRw(context.TODO())
 		if err != nil {
 			return err
 		}
@@ -91,7 +89,7 @@ func (sr *StageShortRange) doShortRangeSync(s *StageState) (int, error) {
 
 	numShortRangeCounterVec.With(s.state.promLabels()).Inc()
 
-	srCtx, cancel := context.WithTimeout(s.state.ctx, ShortRangeTimeout)
+	srCtx, cancel := context.WithTimeout(context.TODO(), ShortRangeTimeout)
 	defer cancel()
 
 	sh := &srHelper{

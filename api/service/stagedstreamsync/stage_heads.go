@@ -13,9 +13,8 @@ type StageHeads struct {
 }
 
 type StageHeadsCfg struct {
-	ctx context.Context
-	bc  core.BlockChain
-	db  kv.RwDB
+	bc core.BlockChain
+	db kv.RwDB
 }
 
 func NewStageHeads(cfg StageHeadsCfg) *StageHeads {
@@ -24,19 +23,18 @@ func NewStageHeads(cfg StageHeadsCfg) *StageHeads {
 	}
 }
 
-func NewStageHeadersCfg(ctx context.Context, bc core.BlockChain, db kv.RwDB) StageHeadsCfg {
+func NewStageHeadersCfg(bc core.BlockChain, db kv.RwDB) StageHeadsCfg {
 	return StageHeadsCfg{
-		ctx: ctx,
-		bc:  bc,
-		db:  db,
+		bc: bc,
+		db: db,
 	}
 }
 
 func (heads *StageHeads) SetStageContext(ctx context.Context) {
-	heads.configs.ctx = ctx
+
 }
 
-func (heads *StageHeads) Exec(firstCycle bool, invalidBlockRevert bool, s *StageState, reverter Reverter, tx kv.RwTx) error {
+func (heads *StageHeads) Exec(ctx context.Context, firstCycle bool, invalidBlockRevert bool, s *StageState, reverter Reverter, tx kv.RwTx) error {
 
 	// no need to update target if we are redoing the stages because of bad block
 	if invalidBlockRevert {
@@ -51,7 +49,7 @@ func (heads *StageHeads) Exec(firstCycle bool, invalidBlockRevert bool, s *Stage
 	useInternalTx := tx == nil
 	if useInternalTx {
 		var err error
-		tx, err = heads.configs.db.BeginRw(heads.configs.ctx)
+		tx, err = heads.configs.db.BeginRw(ctx)
 		if err != nil {
 			return err
 		}
@@ -63,7 +61,7 @@ func (heads *StageHeads) Exec(firstCycle bool, invalidBlockRevert bool, s *Stage
 	currentHeight := heads.configs.bc.CurrentBlock().NumberU64()
 	s.state.currentCycle.TargetHeight = maxHeight
 	targetHeight := uint64(0)
-	if errV := CreateView(heads.configs.ctx, heads.configs.db, tx, func(etx kv.Tx) (err error) {
+	if errV := CreateView(ctx, heads.configs.db, tx, func(etx kv.Tx) (err error) {
 		if targetHeight, err = s.CurrentStageProgress(etx); err != nil {
 			return err
 		}
