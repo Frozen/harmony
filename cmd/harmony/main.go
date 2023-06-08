@@ -1084,19 +1084,18 @@ func listenOSSigAndShutDown(ctx context.Context, node *node.Node) {
 	const msg = "Got %s signal. Gracefully shutting down...\n"
 	fmt.Fprintf(os.Stderr, msg, ctx.Err())
 
-	go node.ShutDown()
-
-	for i := 10; i > 0; i-- {
-		//<-osSignal
-		if i > 1 {
-			fmt.Printf("Already shutting down, interrupt more to force quit: (times=%v)\n", i-1)
-		}
-	}
-
 	select {
 	case <-ctx.Done():
+		go node.ShutDown()
 		<-time.After(2 * time.Second)
 	}
+
+	//for i := 10; i > 0; i-- {
+	//	//<-osSignal
+	//	if i > 1 {
+	//		fmt.Printf("Already shutting down, interrupt more to force quit: (times=%v)\n", i-1)
+	//	}
+	//}
 
 	fmt.Println("quit.")
 	os.Exit(-1)
