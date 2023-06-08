@@ -48,7 +48,7 @@ func CreateStagedSync(ctx context.Context,
 
 	var mainDB kv.RwDB
 	dbs := make([]kv.RwDB, config.Concurrency)
-	if UseMemDB {
+	if true {
 		mainDB = kv.NewDB()
 		for i := 0; i < config.Concurrency; i++ {
 			dbs[i] = kv.NewDB()
