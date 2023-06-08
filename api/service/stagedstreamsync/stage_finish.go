@@ -51,7 +51,7 @@ func (finish *StageFinish) Exec(ctx context.Context, firstCycle bool, invalidBlo
 func (finish *StageFinish) Revert(ctx context.Context, firstCycle bool, u *RevertState, s *StageState, tx kv.RwTx) (err error) {
 	useInternalTx := tx == nil
 	if useInternalTx {
-		tx, err = finish.configs.db.BeginRw(context.TODO())
+		tx, err = finish.configs.db.BeginRw(ctx)
 		if err != nil {
 			return err
 		}
@@ -73,7 +73,7 @@ func (finish *StageFinish) Revert(ctx context.Context, firstCycle bool, u *Rever
 func (finish *StageFinish) CleanUp(ctx context.Context, firstCycle bool, p *CleanUpState, tx kv.RwTx) (err error) {
 	useInternalTx := tx == nil
 	if useInternalTx {
-		tx, err = finish.configs.db.BeginRw(context.TODO())
+		tx, err = finish.configs.db.BeginRw(ctx)
 		if err != nil {
 			return err
 		}

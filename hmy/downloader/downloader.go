@@ -86,11 +86,11 @@ func NewDownloader(host p2p.Host, bc core.BlockChain, isBeaconNode bool, config 
 }
 
 // Start start the downloader
-func (d *Downloader) Start() {
-	go d.run()
+func (d *Downloader) Start(ctx context.Context) {
+	go d.run(ctx)
 
 	if d.bh != nil {
-		d.bh.start()
+		d.bh.start(ctx)
 	}
 }
 
@@ -142,9 +142,9 @@ func (d *Downloader) SubscribeDownloadFinished(ch chan struct{}) event.Subscript
 	return d.evtDownloadFinished.Subscribe(ch)
 }
 
-func (d *Downloader) run() {
+func (d *Downloader) run(ctx context.Context) {
 	d.waitForBootFinish()
-	d.loop()
+	d.loop(ctx)
 }
 
 // waitForBootFinish wait for stream manager to finish the initial discovery and have
@@ -184,7 +184,7 @@ func (d *Downloader) waitForBootFinish() {
 	}
 }
 
-func (d *Downloader) loop() {
+func (d *Downloader) loop(ctx context.Context) {
 	ticker := time.NewTicker(10 * time.Second)
 	defer ticker.Stop()
 	initSync := true

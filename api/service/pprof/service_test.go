@@ -1,6 +1,7 @@
 package pprof
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"math/rand"
@@ -85,7 +86,7 @@ func TestStart(t *testing.T) {
 	}
 	defer os.RemoveAll(input.Folder)
 	s := NewService(*input)
-	err := s.Start()
+	err := s.Start(context.TODO())
 	if assErr := assertError(err, nil); assErr != nil {
 		t.Fatal(assErr)
 	}

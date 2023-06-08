@@ -1,10 +1,11 @@
 TOP:=$(realpath ..)
-export CGO_CFLAGS:=-I$(TOP)/bls/include -I$(TOP)/mcl/include -I/opt/homebrew/opt/openssl@1.1/include
+export CGO_CFLAGS:=-I$(TOP)/bls/include -I$(TOP)/mcl/include -I/opt/homebrew/opt/openssl@1.1/include -Wno-error=strict-prototypes
 export CGO_LDFLAGS:=-L$(TOP)/bls/lib -L/opt/homebrew/opt/openssl@1.1/lib
 export LD_LIBRARY_PATH:=$(TOP)/bls/lib:$(TOP)/mcl/lib:/opt/homebrew/opt/openssl@1.1/lib:/opt/homebrew/opt/gmp/lib/:/opt/homebrew/opt/openssl@1.1/lib
 export LIBRARY_PATH:=$(LD_LIBRARY_PATH)
 export DYLD_FALLBACK_LIBRARY_PATH:=$(LD_LIBRARY_PATH)
 export GO111MODULE:=on
+
 PKGNAME=harmony
 VERSION?=$(shell git tag -l --sort=-v:refname | head -n 1 | tr -d v)
 RELEASE?=$(shell git describe --long | cut -f2 -d-)
@@ -167,3 +168,6 @@ docker:
 
 travis_go_checker:
 	bash ./scripts/travis_go_checker.sh
+
+xxx:
+	go test github.com/harmony-one/harmony/node

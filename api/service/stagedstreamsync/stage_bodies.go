@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/harmony-one/harmony/core"
-	"github.com/harmony-one/harmony/core/types"
 	"github.com/harmony-one/harmony/internal/utils"
 	sttypes "github.com/harmony-one/harmony/p2p/stream/types"
 	"github.com/ledgerwatch/erigon-lib/kv"
@@ -171,7 +170,7 @@ func (b *StageBodies) runBlockWorkerLoop(ctx context.Context, gbm *blockDownload
 			err := errors.New("downloadRawBlocks received empty blockBytes")
 			gbm.HandleRequestError(batch, err, stid)
 		} else {
-			if err = b.saveBlocks(gbm.tx, batch, blockBytes, sigBytes, loopID, stid); err != nil {
+			if err = b.saveBlocks(ctx, gbm.tx, batch, blockBytes, sigBytes, loopID, stid); err != nil {
 				panic(ErrSaveBlocksToDbFailed)
 			}
 			gbm.HandleRequestResult(batch, blockBytes, sigBytes, loopID, stid)
@@ -221,7 +220,7 @@ func (b *StageBodies) redownloadBadBlock(ctx context.Context, s *StageState) err
 		}
 		s.state.gbm.SetDownloadDetails(batch, 0, stid)
 		if errU := b.configs.blockDBs[0].Update(context.Background(), func(tx kv.RwTx) error {
-			if err = b.saveBlocks(tx, batch, blockBytes, sigBytes, 0, stid); err != nil {
+			if err = b.saveBlocks(ctx, tx, batch, blockBytes, sigBytes, 0, stid); err != nil {
 				return errors.Errorf("[STAGED_STREAM_SYNC] saving re-downloaded bad block to db failed.")
 			}
 			return nil
@@ -233,20 +232,6 @@ func (b *StageBodies) redownloadBadBlock(ctx context.Context, s *StageState) err
 	return nil
 }
 
-func (b *StageBodies) downloadBlocks(bns []uint64) ([]*types.Block, sttypes.StreamID, error) {
-	ctx, cancel := context.WithTimeout(context.TODO(), 10*time.Second)
-	defer cancel()
-
-	blocks, stid, err := b.configs.protocol.GetBlocksByNumber(ctx, bns)
-	if err != nil {
-		return nil, stid, err
-	}
-	if err := validateGetBlocksResult(bns, blocks); err != nil {
-		return nil, stid, err
-	}
-	return blocks, stid, nil
-}
-
 func (b *StageBodies) downloadRawBlocks(ctx context.Context, bns []uint64) ([][]byte, [][]byte, sttypes.StreamID, error) {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
@@ -254,22 +239,9 @@ func (b *StageBodies) downloadRawBlocks(ctx context.Context, bns []uint64) ([][]
 	return b.configs.protocol.GetRawBlocksByNumber(ctx, bns)
 }
 
-func validateGetBlocksResult(requested []uint64, result []*types.Block) error {
-	if len(result) != len(requested) {
-		return fmt.Errorf("unexpected number of blocks delivered: %v / %v", len(result), len(requested))
-	}
-	for i, block := range result {
-		if block != nil && block.NumberU64() != requested[i] {
-			return fmt.Errorf("block with unexpected number delivered: %v / %v", block.NumberU64(), requested[i])
-		}
-	}
-	return nil
-}
-
 // saveBlocks saves the blocks into db
-func (b *StageBodies) saveBlocks(tx kv.RwTx, bns []uint64, blockBytes [][]byte, sigBytes [][]byte, loopID int, stid sttypes.StreamID) error {
-
-	tx, err := b.configs.blockDBs[loopID].BeginRw(context.Background())
+func (b *StageBodies) saveBlocks(ctx context.Context, tx kv.RwTx, bns []uint64, blockBytes [][]byte, sigBytes [][]byte, loopID int, stid sttypes.StreamID) error {
+	tx, err := b.configs.blockDBs[loopID].BeginRw(ctx)
 	if err != nil {
 		return err
 	}
@@ -291,7 +263,6 @@ func (b *StageBodies) saveBlocks(tx kv.RwTx, bns []uint64, blockBytes [][]byte, 
 				Msg("[STAGED_STREAM_SYNC] adding block to db failed")
 			return err
 		}
-		// sigKey := []byte("s" + string(bns[i]))
 		if err := tx.Put(BlockSignaturesBucket, blkKey, sig); err != nil {
 			utils.Logger().Error().
 				Err(err).
@@ -308,11 +279,11 @@ func (b *StageBodies) saveBlocks(tx kv.RwTx, bns []uint64, blockBytes [][]byte, 
 	return nil
 }
 
-func (b *StageBodies) saveProgress(s *StageState, progress uint64, tx kv.RwTx) (err error) {
+func (b *StageBodies) saveProgress(ctx context.Context, s *StageState, progress uint64, tx kv.RwTx) (err error) {
 	useInternalTx := tx == nil
 	if useInternalTx {
 		var err error
-		tx, err = b.configs.db.BeginRw(context.Background())
+		tx, err = b.configs.db.BeginRw(ctx)
 		if err != nil {
 			return err
 		}

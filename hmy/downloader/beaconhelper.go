@@ -1,6 +1,7 @@
 package downloader
 
 import (
+	"context"
 	"time"
 
 	"github.com/harmony-one/harmony/core/types"
@@ -48,15 +49,15 @@ func newBeaconHelper(bc blockChain, blockC <-chan *types.Block, insertHook func(
 	}
 }
 
-func (bh *beaconHelper) start() {
-	go bh.loop()
+func (bh *beaconHelper) start(ctx context.Context) {
+	go bh.loop(ctx)
 }
 
 func (bh *beaconHelper) close() {
 	close(bh.closeC)
 }
 
-func (bh *beaconHelper) loop() {
+func (bh *beaconHelper) loop(ctx context.Context) {
 	t := time.NewTicker(10 * time.Second)
 	defer t.Stop()
 	for {
@@ -89,6 +90,10 @@ func (bh *beaconHelper) loop() {
 			close(it.doneC)
 
 		case <-bh.closeC:
+			return
+
+		case <-ctx.Done():
+			close(bh.closeC)
 			return
 		}
 	}

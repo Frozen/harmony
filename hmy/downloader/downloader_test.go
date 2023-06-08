@@ -33,7 +33,7 @@ func TestDownloader_Integration(t *testing.T) {
 	defer startedSub.Unsubscribe()
 
 	// Start the downloader
-	d.Start()
+	d.Start(ctx)
 	defer d.Close()
 
 	// During bootstrap, trigger two download task: one long range, one short range.

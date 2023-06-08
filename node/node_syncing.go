@@ -1,6 +1,7 @@
 package node
 
 import (
+	"context"
 	"fmt"
 	"math/rand"
 	"net"
@@ -865,7 +866,7 @@ func (node *Node) SyncPeers() map[string]int {
 }
 
 type Downloaders interface {
-	Start()
+	Start(ctx context.Context)
 	Close()
 	DownloadAsync(shardID uint32)
 	// GetShardDownloader(shardID uint32) *Downloader

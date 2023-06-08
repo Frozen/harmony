@@ -28,8 +28,6 @@ type (
 
 		downloadC chan struct{}
 		closeC    chan struct{}
-		ctx       context.Context
-		cancel    context.CancelFunc
 
 		config Config
 		logger zerolog.Logger
@@ -65,12 +63,9 @@ func NewDownloader(host p2p.Host, bc core.BlockChain, dbDir string, isBeaconNode
 		Str("module", "staged stream sync").
 		Uint32("ShardID", bc.ShardID()).Logger()
 
-	ctx, cancel := context.WithCancel(context.Background())
-
 	//TODO: use mem db should be in config file
-	stagedSyncInstance, err := CreateStagedSync(ctx, bc, dbDir, false, isBeaconNode, sp, config, logger, config.LogProgress)
+	stagedSyncInstance, err := CreateStagedSync(context.TODO(), bc, dbDir, false, isBeaconNode, sp, config, logger, config.LogProgress)
 	if err != nil {
-		cancel()
 		return nil
 	}
 
@@ -83,8 +78,6 @@ func NewDownloader(host p2p.Host, bc core.BlockChain, dbDir string, isBeaconNode
 
 		downloadC: make(chan struct{}),
 		closeC:    make(chan struct{}),
-		ctx:       ctx,
-		cancel:    cancel,
 
 		config: config,
 		logger: logger,
@@ -92,10 +85,10 @@ func NewDownloader(host p2p.Host, bc core.BlockChain, dbDir string, isBeaconNode
 }
 
 // Start starts the downloader
-func (d *Downloader) Start() {
+func (d *Downloader) Start(ctx context.Context) {
 	go func() {
 		d.waitForBootFinish()
-		d.loop()
+		d.loop(ctx)
 	}()
 
 	if d.bh != nil {
@@ -106,7 +99,6 @@ func (d *Downloader) Start() {
 // Close closes the downloader
 func (d *Downloader) Close() {
 	close(d.closeC)
-	d.cancel()
 
 	if d.bh != nil {
 		d.bh.close()
@@ -186,7 +178,7 @@ func (d *Downloader) waitForBootFinish() {
 	}
 }
 
-func (d *Downloader) loop() {
+func (d *Downloader) loop(ctx context.Context) {
 	ticker := time.NewTicker(10 * time.Second)
 	defer ticker.Stop()
 	// for shard chain and beacon chain node, first we start with initSync=true to
@@ -208,7 +200,7 @@ func (d *Downloader) loop() {
 			go trigger()
 
 		case <-d.downloadC:
-			addedBN, err := d.stagedSyncInstance.doSync(d.ctx, initSync)
+			addedBN, err := d.stagedSyncInstance.doSync(ctx, initSync)
 			if err != nil {
 				//TODO: if there is a bad block which can't be resolved
 				if d.stagedSyncInstance.invalidBlock.Active {

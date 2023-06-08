@@ -3,6 +3,7 @@ package stagedstreamsync
 import (
 	"sync"
 
+	"github.com/harmony-one/harmony/core/types"
 	sttypes "github.com/harmony-one/harmony/p2p/stream/types"
 	"github.com/ledgerwatch/erigon-lib/kv"
 	"github.com/rs/zerolog"
@@ -15,8 +16,10 @@ type BlockDownloadDetails struct {
 
 // blockDownloadManager is the helper structure for get blocks request management
 type blockDownloadManager struct {
-	chain blockChain
-	tx    kv.RwTx
+	chain interface {
+		CurrentBlock() *types.Block
+	}
+	tx kv.RwTx
 
 	targetBN   uint64
 	requesting map[uint64]struct{}             // block numbers that have been assigned to workers but not received

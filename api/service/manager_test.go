@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/harmony-one/harmony/eth/rpc"
+	"github.com/stretchr/testify/require"
 )
 
 func TestManager_StartServices(t *testing.T) {
@@ -27,7 +28,7 @@ func TestManager_StartServices(t *testing.T) {
 		},
 		{
 			services: []Service{
-				makeTestService(0, func() error { return errors.New("start error") }, nil),
+				makeTestService(0, func(context.Context) error { return errors.New("start error") }, nil),
 			},
 			stopped: true,
 			err:     errors.New("cannot start service [Unknown]: start error"),
@@ -36,7 +37,7 @@ func TestManager_StartServices(t *testing.T) {
 			services: []Service{
 				makeTestService(0, nil, nil),
 				makeTestService(1, nil, nil),
-				makeTestService(2, func() error { return errors.New("start error") }, nil),
+				makeTestService(2, func(ctx context.Context) error { return errors.New("start error") }, nil),
 			},
 			stopped: true,
 			err:     errors.New("cannot start service [Unknown]: start error"),
@@ -44,8 +45,8 @@ func TestManager_StartServices(t *testing.T) {
 		{
 			services: []Service{
 				makeTestService(0, nil, nil),
-				makeTestService(1, nil, func() error { return errors.New("stop error") }),
-				makeTestService(2, func() error { return errors.New("start error") }, nil),
+				makeTestService(1, nil, func(ctx context.Context) error { return errors.New("stop error") }),
+				makeTestService(2, func(ctx context.Context) error { return errors.New("start error") }, nil),
 			},
 			stopped: true,
 			err:     errors.New("cannot start service [Unknown]: start error; failed to stop service [Unknown]: stop error"),
@@ -55,6 +56,7 @@ func TestManager_StartServices(t *testing.T) {
 		m := &Manager{
 			services: test.services,
 		}
+		//ctx, calcel := context.WithCancel(context.TODO())
 		err := m.StartServices(context.TODO())
 		if assErr := assertError(err, test.err); assErr != nil {
 			t.Errorf("Test %v: unexpected error: %v", i, assErr)
@@ -84,8 +86,8 @@ func TestManager_StopServices(t *testing.T) {
 		{
 			services: []Service{
 				makeTestService(0, nil, nil),
-				makeTestService(1, nil, func() error { return errors.New("expect error") }),
-				makeTestService(2, nil, func() error { return errors.New("expect error") }),
+				makeTestService(1, nil, func(ctx context.Context) error { return errors.New("expect error") }),
+				makeTestService(2, nil, func(ctx context.Context) error { return errors.New("expect error") }),
 			},
 			expErr: errors.New("failed to stop service [Unknown]: expect error; failed to stop service [Unknown]: expect error"),
 		},
@@ -96,9 +98,10 @@ func TestManager_StopServices(t *testing.T) {
 			services: test.services,
 		}
 		err := m.StopServices()
-		if assErr := assertError(err, test.expErr); assErr != nil {
-			t.Errorf("Test %v: %v", i, assErr)
-		}
+		//if assErr := assertError(err, test.expErr); assErr != nil {
+		//	t.Errorf("Test %v: %v", i, assErr)
+		//}
+		require.Equal(t, err, test.expErr)
 		for _, s := range test.services {
 			ts := s.(*testService)
 			if ts.started {
@@ -112,11 +115,11 @@ func TestManager_StopServices(t *testing.T) {
 type testService struct {
 	index        int
 	started      bool
-	startErrHook func() error
-	stopErrHook  func() error
+	startErrHook func(ctx context.Context) error
+	stopErrHook  func(ctx context.Context) error
 }
 
-func makeTestService(index int, startErrHook, stopErrHook func() error) *testService {
+func makeTestService(index int, startErrHook, stopErrHook func(ctx context.Context) error) *testService {
 	return &testService{
 		index:        index,
 		startErrHook: startErrHook,
@@ -136,7 +139,7 @@ func (s *testService) Start(ctx context.Context) error {
 
 func (s *testService) Stop() error {
 	if s.stopErrHook != nil {
-		if err := s.stopErrHook(); err != nil {
+		if err := s.stopErrHook(context.TODO()); err != nil {
 			s.started = false
 			return err
 		}

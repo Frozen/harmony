@@ -1,6 +1,8 @@
 package stagedstreamsync
 
 import (
+	"context"
+
 	"github.com/harmony-one/abool"
 	"github.com/harmony-one/harmony/core"
 	"github.com/harmony-one/harmony/p2p"
@@ -35,14 +37,14 @@ func NewDownloaders(host p2p.Host, bcs []core.BlockChain, dbDir string, config C
 }
 
 // Start starts the downloaders
-func (ds *Downloaders) Start() {
+func (ds *Downloaders) Start(ctx context.Context) {
 	if ds.config.ServerOnly {
 		// Run in server only mode. Do not start downloaders.
 		return
 	}
 	ds.active.Set()
 	for _, d := range ds.ds {
-		d.Start()
+		d.Start(ctx)
 	}
 }
 
