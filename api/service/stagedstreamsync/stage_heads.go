@@ -6,6 +6,7 @@ import (
 	"github.com/harmony-one/harmony/api/service/stagedstreamsync/kv"
 	"github.com/harmony-one/harmony/core"
 	"github.com/harmony-one/harmony/internal/utils"
+	"github.com/pkg/errors"
 )
 
 type StageHeads struct {
@@ -47,7 +48,7 @@ func (heads *StageHeads) Exec(ctx context.Context, firstCycle bool, invalidBlock
 		var err error
 		tx, err = heads.configs.db.BeginRw(ctx)
 		if err != nil {
-			return err
+			return errors.WithMessagef(err, "failed to create tx")
 		}
 		defer tx.Rollback()
 	}
@@ -59,11 +60,11 @@ func (heads *StageHeads) Exec(ctx context.Context, firstCycle bool, invalidBlock
 	targetHeight := uint64(0)
 	if errV := CreateView(ctx, heads.configs.db, tx, func(etx kv.Tx) (err error) {
 		if targetHeight, err = s.CurrentStageProgress(etx); err != nil {
-			return err
+			return errors.WithMessagef(err, "failed to get current stage progress")
 		}
 		return nil
 	}); errV != nil {
-		return errV
+		return errors.WithMessagef(errV, "failed to create view")
 	}
 
 	if currentHeight >= maxHeight {
@@ -96,12 +97,12 @@ func (heads *StageHeads) Exec(ctx context.Context, firstCycle bool, invalidBlock
 		utils.Logger().Error().
 			Err(err).
 			Msgf(WrapStagedSyncMsg("saving progress for headers stage failed"))
-		return err
+		return errors.WithMessagef(err, "failed to save progress for headers stage")
 	}
 
 	if useInternalTx {
 		if err := tx.Commit(); err != nil {
-			return err
+			return errors.WithMessagef(err, "failed to commit tx")
 		}
 	}
 

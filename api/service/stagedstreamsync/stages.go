@@ -2,6 +2,7 @@ package stagedstreamsync
 
 import (
 	"github.com/harmony-one/harmony/api/service/stagedstreamsync/kv"
+	"github.com/pkg/errors"
 )
 
 // SyncStageID represents the stages in the Mode.StagedSync mode
@@ -38,7 +39,7 @@ func GetStageProgress(db kv.Getter, stage SyncStageID, isBeacon bool) (uint64, e
 	stgID := GetStageID(stage, isBeacon, false)
 	v, err := db.GetOne(kv.SyncStageProgress, stgID)
 	if err != nil {
-		return 0, err
+		return 0, errors.WithMessagef(err, "failed to get stage progress for %s", stage)
 	}
 	return unmarshalData(v)
 }
@@ -46,7 +47,11 @@ func GetStageProgress(db kv.Getter, stage SyncStageID, isBeacon bool) (uint64, e
 // SaveStageProgress saves progress of given sync stage
 func SaveStageProgress(db kv.Putter, stage SyncStageID, isBeacon bool, progress uint64) error {
 	stgID := GetStageID(stage, isBeacon, false)
-	return db.Put(kv.SyncStageProgress, stgID, marshalData(progress))
+	err := db.Put(kv.SyncStageProgress, stgID, marshalData(progress))
+	if err != nil {
+		return errors.WithMessagef(err, "failed to save stage progress for %s", stage)
+	}
+	return nil
 }
 
 // GetStageCleanUpProgress retrieves saved progress of given sync stage from the database
@@ -54,7 +59,7 @@ func GetStageCleanUpProgress(db kv.Getter, stage SyncStageID, isBeacon bool) (ui
 	stgID := GetStageID(stage, isBeacon, true)
 	v, err := db.GetOne(kv.SyncStageProgress, stgID)
 	if err != nil {
-		return 0, err
+		return 0, errors.WithMessagef(err, "failed to get stage clean up progress for %s", stage)
 	}
 	return unmarshalData(v)
 }
@@ -62,5 +67,9 @@ func GetStageCleanUpProgress(db kv.Getter, stage SyncStageID, isBeacon bool) (ui
 // SaveStageCleanUpProgress stores the progress of the clean up for a given sync stage to the database
 func SaveStageCleanUpProgress(db kv.Putter, stage SyncStageID, isBeacon bool, progress uint64) error {
 	stgID := GetStageID(stage, isBeacon, true)
-	return db.Put(kv.SyncStageProgress, stgID, marshalData(progress))
+	err := db.Put(kv.SyncStageProgress, stgID, marshalData(progress))
+	if err != nil {
+		return errors.WithMessagef(err, "failed to save stage clean up progress for %s", stage)
+	}
+	return nil
 }

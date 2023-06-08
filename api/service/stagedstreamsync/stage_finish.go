@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/harmony-one/harmony/api/service/stagedstreamsync/kv"
+	"github.com/pkg/errors"
 )
 
 type StageFinish struct {
@@ -32,7 +33,7 @@ func (finish *StageFinish) Exec(ctx context.Context, firstCycle bool, invalidBlo
 		var err error
 		tx, err = finish.configs.db.BeginRw(ctx)
 		if err != nil {
-			return err
+			return errors.WithMessagef(err, "failed to begin tx")
 		}
 		defer tx.Rollback()
 	}
@@ -41,7 +42,7 @@ func (finish *StageFinish) Exec(ctx context.Context, firstCycle bool, invalidBlo
 
 	if useInternalTx {
 		if err := tx.Commit(); err != nil {
-			return err
+			return errors.WithMessagef(err, "failed to commit tx")
 		}
 	}
 

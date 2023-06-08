@@ -11,6 +11,7 @@ import (
 	"github.com/harmony-one/harmony/core"
 	"github.com/harmony-one/harmony/core/types"
 	"github.com/harmony-one/harmony/internal/utils"
+	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 )
 
@@ -74,7 +75,7 @@ func (stg *StageStates) Exec(ctx context.Context, firstCycle bool, invalidBlockR
 		var err error
 		tx, err = stg.configs.db.BeginRw(ctx)
 		if err != nil {
-			return err
+			return errors.WithMessagef(err, "failed to create tx")
 		}
 		defer tx.Rollback()
 	}
@@ -90,7 +91,7 @@ func (stg *StageStates) Exec(ctx context.Context, firstCycle bool, invalidBlockR
 	for i := 0; i < stg.configs.concurrency; i++ {
 		txs[i], err = stg.configs.blockDBs[i].BeginRw(ctx)
 		if err != nil {
-			return err
+			return errors.WithMessagef(err, "failed to create tx for blockDB %d", i)
 		}
 	}
 
@@ -110,11 +111,11 @@ func (stg *StageStates) Exec(ctx context.Context, firstCycle bool, invalidBlockR
 
 		blockBytes, err := txs[loopID].GetOne(BlocksBucket, blkKey)
 		if err != nil {
-			return err
+			return errors.WithMessagef(err, "failed to get block %d", i)
 		}
 		sigBytes, err := txs[loopID].GetOne(BlockSignaturesBucket, blkKey)
 		if err != nil {
-			return err
+			return errors.WithMessagef(err, "failed to get block sig %d", i)
 		}
 
 		// if block size is invalid, we have to break the updating state loop
@@ -127,7 +128,7 @@ func (stg *StageStates) Exec(ctx context.Context, firstCycle bool, invalidBlockR
 			invalidBlockHash := common.Hash{}
 			s.state.protocol.StreamFailed(streamID, "zero bytes block is received from stream")
 			reverter.RevertTo(stg.configs.bc.CurrentBlock().NumberU64(), i, invalidBlockHash, streamID)
-			return ErrInvalidBlockBytes
+			return errors.WithMessagef(ErrInvalidBlockBytes, "block %d size %d", i, sz)
 		}
 
 		var block *types.Block
@@ -138,7 +139,7 @@ func (stg *StageStates) Exec(ctx context.Context, firstCycle bool, invalidBlockR
 			s.state.protocol.StreamFailed(streamID, "invalid block is received from stream")
 			invalidBlockHash := common.Hash{}
 			reverter.RevertTo(stg.configs.bc.CurrentBlock().NumberU64(), i, invalidBlockHash, streamID)
-			return ErrInvalidBlockBytes
+			return errors.WithMessagef(ErrInvalidBlockBytes, "block %d size %d", i, sz)
 		}
 		if sigBytes != nil {
 			block.SetCurrentCommitSig(sigBytes)
@@ -148,7 +149,7 @@ func (stg *StageStates) Exec(ctx context.Context, firstCycle bool, invalidBlockR
 			s.state.protocol.StreamFailed(streamID, "invalid block with unmatched number is received from stream")
 			invalidBlockHash := block.Hash()
 			reverter.RevertTo(stg.configs.bc.CurrentBlock().NumberU64(), i, invalidBlockHash, streamID)
-			return ErrInvalidBlockNumber
+			return errors.WithMessagef(ErrInvalidBlockNumber, "block %d number %d", i, block.NumberU64())
 		}
 
 		if err := verifyAndInsertBlock(stg.configs.bc, block); err != nil {
@@ -160,7 +161,7 @@ func (stg *StageStates) Exec(ctx context.Context, firstCycle bool, invalidBlockR
 			reverter.RevertTo(stg.configs.bc.CurrentBlock().NumberU64(), block.NumberU64(), invalidBlockHash, streamID)
 			pl["error"] = err.Error()
 			longRangeFailInsertedBlockCounterVec.With(pl).Inc()
-			return err
+			return errors.WithMessagef(err, "block %d", block.NumberU64())
 		}
 
 		if invalidBlockRevert {

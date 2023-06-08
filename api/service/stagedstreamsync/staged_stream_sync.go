@@ -13,6 +13,7 @@ import (
 	"github.com/harmony-one/harmony/internal/utils"
 	syncproto "github.com/harmony-one/harmony/p2p/stream/protocols/sync"
 	sttypes "github.com/harmony-one/harmony/p2p/stream/types"
+	"github.com/pkg/errors"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/zerolog"
@@ -466,7 +467,7 @@ func (s *StagedStreamSync) runStage(ctx context.Context, stage *Stage, db kv.RwD
 	start := time.Now()
 	stageState, err := s.StageState(stage.ID, tx, db)
 	if err != nil {
-		return err
+		return errors.WithMessagef(err, "failed to get stage state %s", stage.ID)
 	}
 
 	if err = stage.Handler.Exec(ctx, firstCycle, invalidBlockRevert, stageState, s, tx); err != nil {

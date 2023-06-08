@@ -53,7 +53,7 @@ func (sr *StageShortRange) Exec(ctx context.Context, firstCycle bool, invalidBlo
 	n, err := sr.doShortRangeSync(ctx, s)
 	s.state.inserted = n
 	if err != nil {
-		return err
+		return errors.WithMessagef(err, "failed to do short range sync")
 	}
 
 	useInternalTx := tx == nil
@@ -61,14 +61,14 @@ func (sr *StageShortRange) Exec(ctx context.Context, firstCycle bool, invalidBlo
 		var err error
 		tx, err = sr.configs.db.BeginRw(ctx)
 		if err != nil {
-			return err
+			return errors.WithMessagef(err, "failed to create tx")
 		}
 		defer tx.Rollback()
 	}
 
 	if useInternalTx {
 		if err := tx.Commit(); err != nil {
-			return err
+			return errors.WithMessagef(err, "failed to commit tx")
 		}
 	}
 

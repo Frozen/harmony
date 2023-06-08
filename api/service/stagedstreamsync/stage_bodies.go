@@ -51,7 +51,10 @@ func (b *StageBodies) Exec(ctx context.Context, firstCycle bool, invalidBlockRev
 	useInternalTx := tx == nil
 
 	if invalidBlockRevert {
-		return b.redownloadBadBlock(ctx, s)
+		err := b.redownloadBadBlock(ctx, s)
+		if err != nil {
+			return errors.WithMessagef(err, "failed to redownload bad block")
+		}
 	}
 
 	// for short range sync, skip this stage
@@ -75,12 +78,12 @@ func (b *StageBodies) Exec(ctx context.Context, firstCycle bool, invalidBlockRev
 		}
 		return nil
 	}); errV != nil {
-		return errV
+		return errors.WithMessagef(errV, "failed to create view")
 	}
 
 	if currProgress == 0 {
 		if err := b.cleanAllBlockDBs(ctx); err != nil {
-			return err
+			return errors.WithMessage(err, "failed to clean all blockDBs")
 		}
 		currProgress = currentHead
 	}
@@ -100,7 +103,7 @@ func (b *StageBodies) Exec(ctx context.Context, firstCycle bool, invalidBlockRev
 		var err error
 		tx, err = b.configs.db.BeginRw(ctx)
 		if err != nil {
-			return err
+			return errors.WithMessagef(err, "failed to create tx")
 		}
 		defer tx.Rollback()
 	}
@@ -120,7 +123,7 @@ func (b *StageBodies) Exec(ctx context.Context, firstCycle bool, invalidBlockRev
 
 	if useInternalTx {
 		if err := tx.Commit(); err != nil {
-			return err
+			return errors.WithMessage(err, "failed to commit tx")
 		}
 	}
 
