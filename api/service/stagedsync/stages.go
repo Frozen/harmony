@@ -4,7 +4,7 @@ import (
 	"encoding/binary"
 	"fmt"
 
-	"github.com/ledgerwatch/erigon-lib/kv"
+	"github.com/harmony-one/harmony/api/service/stagedstreamsync/kv"
 )
 
 // SyncStageID represents the stages in the Mode.StagedSync mode

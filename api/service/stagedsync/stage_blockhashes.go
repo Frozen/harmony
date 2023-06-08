@@ -4,16 +4,13 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
-	"path/filepath"
 	"strconv"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/harmony-one/harmony/api/service/stagedstreamsync/kv"
 	"github.com/harmony-one/harmony/core"
 	"github.com/harmony-one/harmony/internal/utils"
-	"github.com/ledgerwatch/erigon-lib/kv"
-	"github.com/ledgerwatch/erigon-lib/kv/mdbx"
-	"github.com/ledgerwatch/log/v3"
 )
 
 type StageBlockHashes struct {
@@ -55,38 +52,41 @@ func NewStageBlockHashesCfg(ctx context.Context, bc core.BlockChain, dbDir strin
 }
 
 func initHashesCacheDB(ctx context.Context, dbDir string, isBeacon bool) (db kv.RwDB, err error) {
-	// create caches db
-	cachedbName := BlockHashesCacheDB
-	if isBeacon {
-		cachedbName = "beacon_" + cachedbName
-	}
-	dbPath := filepath.Join(dbDir, cachedbName)
-	cachedb := mdbx.NewMDBX(log.New()).Path(dbPath).MustOpen()
-	// create transaction on cachedb
-	tx, errRW := cachedb.BeginRw(ctx)
-	if errRW != nil {
-		utils.Logger().Error().
-			Err(errRW).
-			Msg("[STAGED_SYNC] initializing sync caches failed")
-		return nil, errRW
-	}
-	defer tx.Rollback()
-	if err := tx.CreateBucket(BlockHashesBucket); err != nil {
-		utils.Logger().Error().
-			Err(err).
-			Msg("[STAGED_SYNC] creating cache bucket failed")
-		return nil, err
-	}
-	if err := tx.CreateBucket(StageProgressBucket); err != nil {
-		utils.Logger().Error().
-			Err(err).
-			Msg("[STAGED_SYNC] creating progress bucket failed")
-		return nil, err
-	}
-	if err := tx.Commit(); err != nil {
-		return nil, err
-	}
-	return cachedb, nil
+	return kv.NewDB(), nil
+	/*
+		// create caches db
+		cachedbName := BlockHashesCacheDB
+		if isBeacon {
+			cachedbName = "beacon_" + cachedbName
+		}
+		dbPath := filepath.Join(dbDir, cachedbName)
+		cachedb := kv.NewDB()//.Path(dbPath).MustOpen()
+		// create transaction on cachedb
+		tx, errRW := cachedb.BeginRw(ctx)
+		if errRW != nil {
+			utils.Logger().Error().
+				Err(errRW).
+				Msg("[STAGED_SYNC] initializing sync caches failed")
+			return nil, errRW
+		}
+		defer tx.Rollback()
+		if err := tx.CreateBucket(BlockHashesBucket); err != nil {
+			utils.Logger().Error().
+				Err(err).
+				Msg("[STAGED_SYNC] creating cache bucket failed")
+			return nil, err
+		}
+		if err := tx.CreateBucket(StageProgressBucket); err != nil {
+			utils.Logger().Error().
+				Err(err).
+				Msg("[STAGED_SYNC] creating progress bucket failed")
+			return nil, err
+		}
+		if err := tx.Commit(); err != nil {
+			return nil, err
+		}
+		return cachedb, nil
+	*/
 }
 
 func (bh *StageBlockHashes) Exec(firstCycle bool, invalidBlockRevert bool, s *StageState, reverter Reverter, tx kv.RwTx) (err error) {
@@ -509,9 +509,11 @@ func (bh *StageBlockHashes) getHashFromCache(height uint64) (h []byte, err error
 
 	var cacheHash []byte
 	key := strconv.FormatUint(height, 10)
-	if exist, err := tx.Has(BlockHashesBucket, []byte(key)); !exist || err != nil {
-		return nil, ErrFetchBlockHashProgressFail
-	}
+	/*
+		if exist, err := tx.Has(BlockHashesBucket, []byte(key)); !exist || err != nil {
+			return nil, ErrFetchBlockHashProgressFail
+		}
+	*/
 	if cacheHash, err = tx.GetOne(BlockHashesBucket, []byte(key)); err != nil {
 		utils.Logger().Error().
 			Err(err).

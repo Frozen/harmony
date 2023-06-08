@@ -8,11 +8,12 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/event"
+	"github.com/harmony-one/harmony/api/service/stagedstreamsync/kv"
 	"github.com/harmony-one/harmony/core"
 	"github.com/harmony-one/harmony/internal/utils"
 	syncproto "github.com/harmony-one/harmony/p2p/stream/protocols/sync"
 	sttypes "github.com/harmony-one/harmony/p2p/stream/types"
-	"github.com/ledgerwatch/erigon-lib/kv"
+
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/zerolog"
 )
@@ -116,11 +117,11 @@ func (s *StagedStreamSync) NewRevertState(id SyncStageID, revertPoint uint64) *R
 	return &RevertState{id, revertPoint, s}
 }
 
-func (s *StagedStreamSync) CleanUpStageState(id SyncStageID, forwardProgress uint64, tx kv.Tx, db kv.RwDB) (*CleanUpState, error) {
+func (s *StagedStreamSync) CleanUpStageState(ctx context.Context, id SyncStageID, forwardProgress uint64, tx kv.Tx, db kv.RwDB) (*CleanUpState, error) {
 	var pruneProgress uint64
 	var err error
 
-	if errV := CreateView(context.Background(), db, tx, func(tx kv.Tx) error {
+	if errV := CreateView(ctx, db, tx, func(tx kv.Tx) error {
 		pruneProgress, err = GetStageCleanUpProgress(tx, id, s.isBeacon)
 		if err != nil {
 			return err
@@ -413,48 +414,51 @@ func CreateView(ctx context.Context, db kv.RwDB, tx kv.Tx, f func(tx kv.Tx) erro
 
 // printLogs prints all timing logs
 func printLogs(tx kv.RwTx, timings []Timing) error {
-	var logCtx []interface{}
-	count := 0
-	for i := range timings {
-		if timings[i].took < 50*time.Millisecond {
-			continue
-		}
-		count++
-		if count == 50 {
-			break
-		}
-		if timings[i].isRevert {
-			logCtx = append(logCtx, "Revert "+string(timings[i].stage), timings[i].took.Truncate(time.Millisecond).String())
-		} else if timings[i].isCleanUp {
-			logCtx = append(logCtx, "CleanUp "+string(timings[i].stage), timings[i].took.Truncate(time.Millisecond).String())
-		} else {
-			logCtx = append(logCtx, string(timings[i].stage), timings[i].took.Truncate(time.Millisecond).String())
-		}
-	}
-	if len(logCtx) > 0 {
-		timingLog := fmt.Sprintf("Timings (slower than 50ms) %v", logCtx)
-		utils.Logger().Info().Msgf(WrapStagedSyncMsg(timingLog))
-	}
-
-	if tx == nil {
-		return nil
-	}
-
-	if len(logCtx) > 0 { // also don't print this logs if everything is fast
-		buckets := Buckets
-		bucketSizes := make([]interface{}, 0, 2*len(buckets))
-		for _, bucket := range buckets {
-			sz, err1 := tx.BucketSize(bucket)
-			if err1 != nil {
-				return err1
-			}
-			bucketSizes = append(bucketSizes, bucket, ByteCount(sz))
-		}
-		utils.Logger().Info().
-			Msgf(WrapStagedSyncMsg(fmt.Sprintf("Tables %v", bucketSizes...)))
-	}
-	tx.CollectMetrics()
 	return nil
+	/*
+		var logCtx []interface{}
+		count := 0
+		for i := range timings {
+			if timings[i].took < 50*time.Millisecond {
+				continue
+			}
+			count++
+			if count == 50 {
+				break
+			}
+			if timings[i].isRevert {
+				logCtx = append(logCtx, "Revert "+string(timings[i].stage), timings[i].took.Truncate(time.Millisecond).String())
+			} else if timings[i].isCleanUp {
+				logCtx = append(logCtx, "CleanUp "+string(timings[i].stage), timings[i].took.Truncate(time.Millisecond).String())
+			} else {
+				logCtx = append(logCtx, string(timings[i].stage), timings[i].took.Truncate(time.Millisecond).String())
+			}
+		}
+		if len(logCtx) > 0 {
+			timingLog := fmt.Sprintf("Timings (slower than 50ms) %v", logCtx)
+			utils.Logger().Info().Msgf(WrapStagedSyncMsg(timingLog))
+		}
+
+		if tx == nil {
+			return nil
+		}
+
+		if len(logCtx) > 0 { // also don't print this logs if everything is fast
+			buckets := Buckets
+			bucketSizes := make([]interface{}, 0, 2*len(buckets))
+			for _, bucket := range buckets {
+				sz, err1 := tx.BucketSize(bucket)
+				if err1 != nil {
+					return err1
+				}
+				bucketSizes = append(bucketSizes, bucket, ByteCount(sz))
+			}
+			utils.Logger().Info().
+				Msgf(WrapStagedSyncMsg(fmt.Sprintf("Tables %v", bucketSizes...)))
+		}
+		tx.CollectMetrics()
+		return nil
+	*/
 }
 
 // runStage executes stage
@@ -526,7 +530,7 @@ func (s *StagedStreamSync) pruneStage(ctx context.Context, firstCycle bool, stag
 		return err
 	}
 
-	prune, err := s.CleanUpStageState(stage.ID, stageState.BlockNumber, tx, db)
+	prune, err := s.CleanUpStageState(ctx, stage.ID, stageState.BlockNumber, tx, db)
 	if err != nil {
 		return err
 	}

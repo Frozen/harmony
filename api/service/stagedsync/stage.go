@@ -2,7 +2,7 @@ package stagedsync
 
 import (
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ledgerwatch/erigon-lib/kv"
+	"github.com/harmony-one/harmony/api/service/stagedstreamsync/kv"
 )
 
 type ExecFunc func(firstCycle bool, invalidBlockRevert bool, s *StageState, reverter Reverter, tx kv.RwTx) error

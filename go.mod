@@ -67,10 +67,7 @@ require (
 )
 
 require (
-	github.com/c2h5oh/datasize v0.0.0-20220606134207-859f65c6625b
 	github.com/holiman/bloomfilter/v2 v2.0.3
-	github.com/ledgerwatch/erigon-lib v0.0.0-20221218022306-0f8fdd40c2db
-	github.com/ledgerwatch/log/v3 v3.6.0
 	github.com/libp2p/go-libp2p-core v0.20.1
 	github.com/olekukonko/tablewriter v0.0.5
 )
@@ -80,7 +77,6 @@ require (
 	github.com/BurntSushi/toml v1.2.0 // indirect
 	github.com/DataDog/zstd v1.5.2 // indirect
 	github.com/OpenPeeDeeP/depguard v1.0.1 // indirect
-	github.com/VictoriaMetrics/metrics v1.23.0 // indirect
 	github.com/benbjohnson/clock v1.3.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bits-and-blooms/bitset v1.2.2 // indirect
@@ -249,13 +245,10 @@ require (
 	github.com/tklauser/go-sysconf v0.3.11 // indirect
 	github.com/tklauser/numcpus v0.6.0 // indirect
 	github.com/tommy-muehle/go-mnd v1.1.1 // indirect
-	github.com/torquem-ch/mdbx-go v0.27.0 // indirect
 	github.com/tyler-smith/go-bip39 v1.1.0 // indirect
 	github.com/ultraware/funlen v0.0.2 // indirect
 	github.com/ultraware/whitespace v0.0.4 // indirect
 	github.com/uudashr/gocognit v1.0.1 // indirect
-	github.com/valyala/fastrand v1.1.0 // indirect
-	github.com/valyala/histogram v1.2.0 // indirect
 	github.com/whyrusleeping/go-keyspace v0.0.0-20160322163242-5b898ac5add1 // indirect
 	github.com/yusufpapurcu/wmi v1.2.2 // indirect
 	go.opencensus.io v0.24.0 // indirect

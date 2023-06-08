@@ -3,7 +3,7 @@ package stagedstreamsync
 import (
 	"context"
 
-	"github.com/ledgerwatch/erigon-lib/kv"
+	"github.com/harmony-one/harmony/api/service/stagedstreamsync/kv"
 )
 
 type StageFinish struct {

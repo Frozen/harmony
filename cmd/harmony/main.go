@@ -1092,6 +1092,12 @@ func listenOSSigAndShutDown(ctx context.Context, node *node.Node) {
 			fmt.Printf("Already shutting down, interrupt more to force quit: (times=%v)\n", i-1)
 		}
 	}
-	fmt.Println("Forced QUIT.")
+
+	select {
+	case <-ctx.Done():
+		<-time.After(2 * time.Second)
+	}
+
+	fmt.Println("quit.")
 	os.Exit(-1)
 }

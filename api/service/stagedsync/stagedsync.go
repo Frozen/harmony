@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/harmony-one/harmony/api/service/stagedstreamsync/kv"
 	"github.com/pkg/errors"
 
 	"github.com/Workiva/go-datastructures/queue"
@@ -25,7 +26,6 @@ import (
 	nodeconfig "github.com/harmony-one/harmony/internal/configs/node"
 	"github.com/harmony-one/harmony/internal/utils"
 	"github.com/harmony-one/harmony/p2p"
-	"github.com/ledgerwatch/erigon-lib/kv"
 
 	libp2p_peer "github.com/libp2p/go-libp2p/core/peer"
 )
@@ -428,47 +428,51 @@ func ByteCount(b uint64) string {
 }
 
 func printLogs(tx kv.RwTx, timings []Timing) error {
-	var logCtx []interface{}
-	count := 0
-	for i := range timings {
-		if timings[i].took < 50*time.Millisecond {
-			continue
-		}
-		count++
-		if count == 50 {
-			break
-		}
-		if timings[i].isRevert {
-			logCtx = append(logCtx, "Revert "+string(timings[i].stage), timings[i].took.Truncate(time.Millisecond).String())
-		} else if timings[i].isCleanUp {
-			logCtx = append(logCtx, "CleanUp "+string(timings[i].stage), timings[i].took.Truncate(time.Millisecond).String())
-		} else {
-			logCtx = append(logCtx, string(timings[i].stage), timings[i].took.Truncate(time.Millisecond).String())
-		}
-	}
-	if len(logCtx) > 0 {
-		utils.Logger().Info().
-			Msgf("[STAGED_SYNC] Timings (slower than 50ms) %v", logCtx...)
-	}
-
-	if tx == nil {
-		return nil
-	}
-
-	if len(logCtx) > 0 { // also don't print this logs if everything is fast
-		buckets := Buckets
-		bucketSizes := make([]interface{}, 0, 2*len(buckets))
-		for _, bucket := range buckets {
-			sz, err1 := tx.BucketSize(bucket)
-			if err1 != nil {
-				return err1
+	fmt.Println("Staged Sync Timings:", len(timings))
+	/*
+		var logCtx []interface{}
+		count := 0
+		for i := range timings {
+			if timings[i].took < 50*time.Millisecond {
+				continue
 			}
-			bucketSizes = append(bucketSizes, bucket, ByteCount(sz))
+			count++
+			if count == 50 {
+				break
+			}
+			if timings[i].isRevert {
+				logCtx = append(logCtx, "Revert "+string(timings[i].stage), timings[i].took.Truncate(time.Millisecond).String())
+			} else if timings[i].isCleanUp {
+				logCtx = append(logCtx, "CleanUp "+string(timings[i].stage), timings[i].took.Truncate(time.Millisecond).String())
+			} else {
+				logCtx = append(logCtx, string(timings[i].stage), timings[i].took.Truncate(time.Millisecond).String())
+			}
 		}
-		utils.Logger().Info().
-			Msgf("[STAGED_SYNC] Tables %v", bucketSizes...)
-	}
-	tx.CollectMetrics()
+		if len(logCtx) > 0 {
+			utils.Logger().Info().
+				Msgf("[STAGED_SYNC] Timings (slower than 50ms) %v", logCtx...)
+		}
+
+		if tx == nil {
+			return nil
+		}
+
+		if len(logCtx) > 0 { // also don't print this logs if everything is fast
+			buckets := Buckets
+			bucketSizes := make([]interface{}, 0, 2*len(buckets))
+			for _, bucket := range buckets {
+				sz, err1 := tx.BucketSize(bucket)
+				if err1 != nil {
+					return err1
+				}
+				bucketSizes = append(bucketSizes, bucket, ByteCount(sz))
+			}
+			utils.Logger().Info().
+				Msgf("[STAGED_SYNC] Tables %v", bucketSizes...)
+		}
+		tx.CollectMetrics()
+		return nil
+	*/
 	return nil
 }
 

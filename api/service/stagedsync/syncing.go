@@ -3,20 +3,15 @@ package stagedsync
 import (
 	"context"
 	"fmt"
-	"path/filepath"
 	"time"
 
-	"github.com/c2h5oh/datasize"
+	"github.com/harmony-one/harmony/api/service/stagedstreamsync/kv"
 	"github.com/harmony-one/harmony/consensus"
 	"github.com/harmony-one/harmony/core"
 	nodeconfig "github.com/harmony-one/harmony/internal/configs/node"
 	"github.com/harmony-one/harmony/internal/utils"
 	"github.com/harmony-one/harmony/node/worker"
 	"github.com/harmony-one/harmony/shard"
-	"github.com/ledgerwatch/erigon-lib/kv"
-
-	"github.com/ledgerwatch/erigon-lib/kv/mdbx"
-	"github.com/ledgerwatch/log/v3"
 )
 
 const (
@@ -69,28 +64,30 @@ func CreateStagedSync(
 	ctx := context.Background()
 	isBeacon := bc.ShardID() == shard.BeaconChainShardID
 
-	var db kv.RwDB
-	if UseMemDB {
-		// maximum Blocks in memory is maxMemSyncCycleSize + maxBackgroundBlocks
-		var dbMapSize datasize.ByteSize
-		if isBeacon {
-			// for memdb, maximum 512 kb for beacon chain each block (in average) should be enough
-			dbMapSize = datasize.ByteSize(maxMemSyncCycleSize+maxBackgroundBlocks) * 512 * datasize.KB
+	var db kv.RwDB = kv.NewDB()
+	/*
+		if UseMemDB {
+			// maximum Blocks in memory is maxMemSyncCycleSize + maxBackgroundBlocks
+			//var dbMapSize datasize.ByteSize
+			//if isBeacon {
+			//	// for memdb, maximum 512 kb for beacon chain each block (in average) should be enough
+			//	dbMapSize = datasize.ByteSize(maxMemSyncCycleSize+maxBackgroundBlocks) * 512 * datasize.KB
+			//} else {
+			//	// for memdb, maximum 256 kb for each shard chains block (in average) should be enough
+			//	dbMapSize = datasize.ByteSize(maxMemSyncCycleSize+maxBackgroundBlocks) * 256 * datasize.KB
+			//}
+			// we manually create memory db because "db = memdb.New()" sets the default map size (64 MB) which is not enough for some cases
+			db = kv.NewDB()
 		} else {
-			// for memdb, maximum 256 kb for each shard chains block (in average) should be enough
-			dbMapSize = datasize.ByteSize(maxMemSyncCycleSize+maxBackgroundBlocks) * 256 * datasize.KB
+			if isBeacon {
+				dbPath := filepath.Join(dbDir, "cache_beacon_db")
+				db = mdbx.NewMDBX(log.New()).Path(dbPath).MustOpen()
+			} else {
+				dbPath := filepath.Join(dbDir, "cache_shard_db")
+				db = mdbx.NewMDBX(log.New()).Path(dbPath).MustOpen()
+			}
 		}
-		// we manually create memory db because "db = memdb.New()" sets the default map size (64 MB) which is not enough for some cases
-		db = mdbx.NewMDBX(log.New()).MapSize(dbMapSize).InMem("cache_db").MustOpen()
-	} else {
-		if isBeacon {
-			dbPath := filepath.Join(dbDir, "cache_beacon_db")
-			db = mdbx.NewMDBX(log.New()).Path(dbPath).MustOpen()
-		} else {
-			dbPath := filepath.Join(dbDir, "cache_shard_db")
-			db = mdbx.NewMDBX(log.New()).Path(dbPath).MustOpen()
-		}
-	}
+	*/
 
 	if errInitDB := initDB(ctx, db); errInitDB != nil {
 		return nil, errInitDB
@@ -139,24 +136,26 @@ func CreateStagedSync(
 
 // initDB inits sync loop main database and create buckets
 func initDB(ctx context.Context, db kv.RwDB) error {
-	tx, errRW := db.BeginRw(ctx)
-	if errRW != nil {
-		return errRW
-	}
-	defer tx.Rollback()
-	for _, name := range Buckets {
-		// create bucket
-		if err := tx.CreateBucket(GetStageName(name, false, false)); err != nil {
+	/*
+		tx, errRW := db.BeginRw(ctx)
+		if errRW != nil {
+			return errRW
+		}
+		defer tx.Rollback()
+		for _, name := range Buckets {
+			// create bucket
+			if err := tx.CreateBucket(GetStageName(name, false, false)); err != nil {
+				return err
+			}
+			// create bucket for beacon
+			if err := tx.CreateBucket(GetStageName(name, true, false)); err != nil {
+				return err
+			}
+		}
+		if err := tx.Commit(); err != nil {
 			return err
 		}
-		// create bucket for beacon
-		if err := tx.CreateBucket(GetStageName(name, true, false)); err != nil {
-			return err
-		}
-	}
-	if err := tx.Commit(); err != nil {
-		return err
-	}
+	*/
 	return nil
 }
 

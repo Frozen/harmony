@@ -3,9 +3,9 @@ package stagedstreamsync
 import (
 	"sync"
 
+	"github.com/harmony-one/harmony/api/service/stagedstreamsync/kv"
 	"github.com/harmony-one/harmony/core/types"
 	sttypes "github.com/harmony-one/harmony/p2p/stream/types"
-	"github.com/ledgerwatch/erigon-lib/kv"
 	"github.com/rs/zerolog"
 )
 

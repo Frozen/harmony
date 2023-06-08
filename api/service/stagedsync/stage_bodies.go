@@ -4,17 +4,14 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
-	"path/filepath"
 	"strconv"
 	"sync"
 	"time"
 
 	"github.com/Workiva/go-datastructures/queue"
+	"github.com/harmony-one/harmony/api/service/stagedstreamsync/kv"
 	"github.com/harmony-one/harmony/core"
 	"github.com/harmony-one/harmony/internal/utils"
-	"github.com/ledgerwatch/erigon-lib/kv"
-	"github.com/ledgerwatch/erigon-lib/kv/mdbx"
-	"github.com/ledgerwatch/log/v3"
 )
 
 type StageBodies struct {
@@ -55,37 +52,41 @@ func NewStageBodiesCfg(ctx context.Context, bc core.BlockChain, dbDir string, db
 }
 
 func initBlocksCacheDB(ctx context.Context, dbDir string, isBeacon bool) (db kv.RwDB, err error) {
-	// create caches db
-	cachedbName := BlockCacheDB
-	if isBeacon {
-		cachedbName = "beacon_" + cachedbName
-	}
-	dbPath := filepath.Join(dbDir, cachedbName)
-	cachedb := mdbx.NewMDBX(log.New()).Path(dbPath).MustOpen()
-	tx, errRW := cachedb.BeginRw(ctx)
-	if errRW != nil {
-		utils.Logger().Error().
-			Err(errRW).
-			Msg("[STAGED_SYNC] initializing sync caches failed")
-		return nil, errRW
-	}
-	defer tx.Rollback()
-	if err := tx.CreateBucket(DownloadedBlocksBucket); err != nil {
-		utils.Logger().Error().
-			Err(err).
-			Msg("[STAGED_SYNC] creating cache bucket failed")
-		return nil, err
-	}
-	if err := tx.CreateBucket(StageProgressBucket); err != nil {
-		utils.Logger().Error().
-			Err(err).
-			Msg("[STAGED_SYNC] creating progress bucket failed")
-		return nil, err
-	}
-	if err := tx.Commit(); err != nil {
-		return nil, err
-	}
-	return cachedb, nil
+	return kv.NewDB(), nil
+	/*
+		// create caches db
+		cachedbName := BlockCacheDB
+		if isBeacon {
+			cachedbName = "beacon_" + cachedbName
+		}
+		dbPath := filepath.Join(dbDir, cachedbName)
+		cachedb := kv.NewDB()
+		tx, errRW := cachedb.BeginRw(ctx)
+		if errRW != nil {
+			utils.Logger().Error().
+				Err(errRW).
+				Msg("[STAGED_SYNC] initializing sync caches failed")
+			return nil, errRW
+		}
+		defer tx.Rollback()
+		if err := tx.CreateBucket(DownloadedBlocksBucket); err != nil {
+			utils.Logger().Error().
+				Err(err).
+				Msg("[STAGED_SYNC] creating cache bucket failed")
+			return nil, err
+		}
+		if err := tx.CreateBucket(StageProgressBucket); err != nil {
+			utils.Logger().Error().
+				Err(err).
+				Msg("[STAGED_SYNC] creating progress bucket failed")
+			return nil, err
+		}
+		if err := tx.Commit(); err != nil {
+			return nil, err
+		}
+		return cachedb, nil
+
+	*/
 }
 
 // Exec progresses Bodies stage in the forward direction

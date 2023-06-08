@@ -3,11 +3,11 @@ package stagedstreamsync
 import (
 	"context"
 
+	"github.com/harmony-one/harmony/api/service/stagedstreamsync/kv"
 	"github.com/harmony-one/harmony/core"
 	"github.com/harmony-one/harmony/internal/utils"
 	sttypes "github.com/harmony-one/harmony/p2p/stream/types"
 	"github.com/harmony-one/harmony/shard"
-	"github.com/ledgerwatch/erigon-lib/kv"
 	"github.com/pkg/errors"
 )
 

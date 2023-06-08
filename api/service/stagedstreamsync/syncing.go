@@ -7,14 +7,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/harmony-one/harmony/api/service/stagedstreamsync/kv"
 	"github.com/harmony-one/harmony/core"
 	"github.com/harmony-one/harmony/internal/utils"
 	sttypes "github.com/harmony-one/harmony/p2p/stream/types"
 	"github.com/harmony-one/harmony/shard"
-	"github.com/ledgerwatch/erigon-lib/kv"
-	"github.com/ledgerwatch/erigon-lib/kv/mdbx"
-	"github.com/ledgerwatch/erigon-lib/kv/memdb"
-	"github.com/ledgerwatch/log/v3"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 )
@@ -52,16 +49,17 @@ func CreateStagedSync(ctx context.Context,
 	var mainDB kv.RwDB
 	dbs := make([]kv.RwDB, config.Concurrency)
 	if UseMemDB {
-		mainDB = memdb.New()
+		mainDB = kv.NewDB()
 		for i := 0; i < config.Concurrency; i++ {
-			dbs[i] = memdb.New()
+			dbs[i] = kv.NewDB()
 		}
 	} else {
-		mainDB = mdbx.NewMDBX(log.New()).Path(GetBlockDbPath(isBeacon, -1, dbDir)).MustOpen()
-		for i := 0; i < config.Concurrency; i++ {
-			dbPath := GetBlockDbPath(isBeacon, i, dbDir)
-			dbs[i] = mdbx.NewMDBX(log.New()).Path(dbPath).MustOpen()
-		}
+		panic(fmt.Sprintf("not implemented"))
+		//mainDB = mdbx.NewMDBX(log.New()).Path(GetBlockDbPath(isBeacon, -1, dbDir)).MustOpen()
+		//for i := 0; i < config.Concurrency; i++ {
+		//	dbPath := GetBlockDbPath(isBeacon, i, dbDir)
+		//	dbs[i] = mdbx.NewMDBX(log.New()).Path(dbPath).MustOpen()
+		//}
 	}
 
 	if errInitDB := initDB(ctx, mainDB, dbs, config.Concurrency); errInitDB != nil {
@@ -101,39 +99,39 @@ func CreateStagedSync(ctx context.Context,
 func initDB(ctx context.Context, mainDB kv.RwDB, dbs []kv.RwDB, concurrency int) error {
 
 	// create buckets for mainDB
-	tx, errRW := mainDB.BeginRw(ctx)
-	if errRW != nil {
-		return errRW
-	}
-	defer tx.Rollback()
-
-	for _, name := range Buckets {
-		if err := tx.CreateBucket(GetStageName(name, false, false)); err != nil {
-			return err
-		}
-	}
-	if err := tx.Commit(); err != nil {
-		return err
-	}
+	//tx, errRW := mainDB.BeginRw(ctx)
+	//if errRW != nil {
+	//	return errRW
+	//}
+	//defer tx.Rollback()
+	//
+	//for _, name := range Buckets {
+	//	if err := tx.CreateBucket(GetStageName(name, false, false)); err != nil {
+	//		return err
+	//	}
+	//}
+	//if err := tx.Commit(); err != nil {
+	//	return err
+	//}
 
 	// create buckets for block cache DBs
-	for _, db := range dbs {
-		tx, errRW := db.BeginRw(ctx)
-		if errRW != nil {
-			return errRW
-		}
-
-		if err := tx.CreateBucket(BlocksBucket); err != nil {
-			return err
-		}
-		if err := tx.CreateBucket(BlockSignaturesBucket); err != nil {
-			return err
-		}
-
-		if err := tx.Commit(); err != nil {
-			return err
-		}
-	}
+	//for _, db := range dbs {
+	//	tx, errRW := db.BeginRw(ctx)
+	//	if errRW != nil {
+	//		return errRW
+	//	}
+	//
+	//	if err := tx.CreateBucket(BlocksBucket); err != nil {
+	//		return err
+	//	}
+	//	if err := tx.CreateBucket(BlockSignaturesBucket); err != nil {
+	//		return err
+	//	}
+	//
+	//	if err := tx.Commit(); err != nil {
+	//		return err
+	//	}
+	//}
 
 	return nil
 }

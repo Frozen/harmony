@@ -4,8 +4,8 @@ import (
 	"context"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/harmony-one/harmony/api/service/stagedstreamsync/kv"
 	sttypes "github.com/harmony-one/harmony/p2p/stream/types"
-	"github.com/ledgerwatch/erigon-lib/kv"
 )
 
 type ExecFunc func(firstCycle bool, invalidBlockRevert bool, s *StageState, reverter Reverter, tx kv.RwTx) error
