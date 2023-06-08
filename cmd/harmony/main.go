@@ -1080,13 +1080,13 @@ func listenOSSigAndShutDown(ctx context.Context, node *node.Node) {
 	ctx, cancel := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
 	_ = cancel // TODO: use cancel to stop all services
 	//sig := <-osSignal
-	utils.Logger().Warn().Err(ctx.Err()).Msg("Gracefully shutting down...")
-	const msg = "Got %s signal. Gracefully shutting down...\n"
-	fmt.Fprintf(os.Stderr, msg, ctx.Err())
 
 	select {
 	case <-ctx.Done():
 		go node.ShutDown()
+		utils.Logger().Warn().Err(ctx.Err()).Msg("Gracefully shutting down...")
+		const msg = "Got %s signal. Gracefully shutting down...\n"
+		fmt.Fprintf(os.Stderr, msg, ctx.Err())
 		<-time.After(2 * time.Second)
 	}
 
