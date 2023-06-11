@@ -227,7 +227,7 @@ func (s *StagedStreamSync) doSyncCycle(ctx context.Context, initSync bool) (int,
 
 	s.inserted = 0
 	startHead := s.bc.CurrentBlock().NumberU64()
-	canRunCycleInOneTransaction := false
+	canRunCycleInOneTransaction := true
 
 	var tx kv.RwTx
 	if canRunCycleInOneTransaction {
