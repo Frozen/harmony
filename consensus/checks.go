@@ -141,7 +141,7 @@ func (consensus *Consensus) newBlockSanityChecks(
 }
 
 // TODO: leo: move the sanity check to p2p message validation
-func (consensus *Consensus) onViewChangeSanityCheck(recvMsg *FBFTMessage) bool {
+func (consensus *Consensus) viewChangeSanityCheck(recvMsg *FBFTMessage) error {
 	// TODO: if difference is only one, new leader can still propose the same committed block to avoid another view change
 	// TODO: new leader catchup without ignore view change message
 
@@ -155,29 +155,29 @@ func (consensus *Consensus) onViewChangeSanityCheck(recvMsg *FBFTMessage) bool {
 	if consensus.getBlockNum() > recvMsg.BlockNum {
 		consensus.getLogger().Debug().
 			Msg("[onViewChange] Message BlockNum Is Low")
-		return false
+		return errors.New("message BlockNum Is Low")
 	}
 	if consensus.BlockNum() < recvMsg.BlockNum {
 		consensus.getLogger().Warn().
 			Msg("[onViewChangeSanityCheck] MsgBlockNum is different from my BlockNumber")
-		return false
+		return errors.Errorf("MsgBlockNum is different from my BlockNumber: %d vs %d", recvMsg.BlockNum, consensus.BlockNum())
 	}
 	if consensus.isViewChangingMode() &&
 		consensus.getCurBlockViewID() > recvMsg.ViewID {
 		consensus.getLogger().Debug().Uint64("curBlockViewID", consensus.getCurBlockViewID()).
 			Uint64("msgViewID", recvMsg.ViewID).
 			Msg("[onViewChangeSanityCheck] ViewChanging ID Is Low")
-		return false
+		return errors.Errorf("ViewChanging ID Is Low: %d vs %d", recvMsg.ViewID, consensus.getCurBlockViewID())
 	}
 	if recvMsg.ViewID > consensus.getViewChangingID() && recvMsg.ViewID-consensus.getViewChangingID() > MaxViewIDDiff {
 		consensus.getLogger().Debug().
 			Msg("[onViewChangeSanityCheck] Received viewID that is MaxViewIDDiff (249) further from the current viewID!")
-		return false
+		return errors.Errorf("Received viewID that is MaxViewIDDiff (249) further from the current viewID!")
 	}
 
 	if !recvMsg.HasSingleSender() {
 		consensus.getLogger().Error().Msg("[onViewChangeSanityCheck] zero or multiple signers in view change message.")
-		return false
+		return errors.New("zero or multiple signers in view change message")
 	}
 	senderKey := recvMsg.SenderPubkeys[0]
 
@@ -187,9 +187,9 @@ func (consensus *Consensus) onViewChangeSanityCheck(recvMsg *FBFTMessage) bool {
 		consensus.getLogger().Warn().
 			Uint64("MsgViewID", recvMsg.ViewID).
 			Msg("[onViewChangeSanityCheck] Failed to Verify viewID Signature")
-		return false
+		return errors.New("Failed to Verify viewID Signature")
 	}
-	return true
+	return nil
 }
 
 // TODO: leo: move the sanity check to p2p message validation

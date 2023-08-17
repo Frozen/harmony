@@ -167,3 +167,9 @@ docker:
 
 travis_go_checker:
 	bash ./scripts/travis_go_checker.sh
+
+gogenerate:
+	bash scripts/gogenerate.sh
+
+newnode:
+	bash test/deploy_newnode.sh

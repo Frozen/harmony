@@ -131,7 +131,6 @@ type Consensus struct {
 	dHelper *downloadHelper
 
 	// Both flags only for initialization state.
-	start           bool
 	isInitialLeader bool
 }
 

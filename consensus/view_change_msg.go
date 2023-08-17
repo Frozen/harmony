@@ -135,22 +135,36 @@ var (
 	errIncorrectMessageType = errors.New("Incorrect message type")
 )
 
-// ParseViewChangeMessage parses view change message into FBFTMessage structure
-func ParseViewChangeMessage(msg *msg_pb.Message) (*FBFTMessage, error) {
+// ParseMultiViewChangeMessage parses view change message into FBFTMessage structure
+func ParseMultiViewChangeMessage(msg *msg_pb.Message) ([]*FBFTMessage, error) {
 	if msg == nil {
 		return nil, errNilMessage
 	}
-	vcMsg := msg.GetViewchange()
+	var out []*FBFTMessage
+	vcMsg := msg.GetMultipleViewchange()
+	for _, vc := range vcMsg.Viewchange {
+		if vc == nil {
+			return nil, errNilMessage
+		}
+		msg, err := parseViewChangeMessage(vc, msg_pb.MessageType_VIEWCHANGE)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, msg)
+	}
+	return out, errNilMessage
+}
+
+func parseViewChangeMessage(vcMsg *msg_pb.ViewChangeRequest, MessageType msg_pb.MessageType) (*FBFTMessage, error) {
+	if MessageType != msg_pb.MessageType_VIEWCHANGE {
+		return nil, errIncorrectMessageType
+	}
 	FBFTMsg := FBFTMessage{
 		BlockNum:    vcMsg.BlockNum,
 		ViewID:      vcMsg.ViewId,
-		MessageType: msg.GetType(),
+		MessageType: MessageType,
 		Payload:     make([]byte, len(vcMsg.Payload)),
 		Block:       make([]byte, len(vcMsg.PreparedBlock)),
-	}
-
-	if FBFTMsg.MessageType != msg_pb.MessageType_VIEWCHANGE {
-		return nil, errIncorrectMessageType
 	}
 
 	copy(FBFTMsg.Block[:], vcMsg.PreparedBlock[:])
@@ -185,6 +199,13 @@ func ParseViewChangeMessage(msg *msg_pb.Message) (*FBFTMessage, error) {
 	copy(FBFTMsg.LeaderPubkey.Bytes[:], vcMsg.LeaderPubkey[:])
 
 	return &FBFTMsg, nil
+}
+func ParseViewChangeMessage(msg *msg_pb.Message) (*FBFTMessage, error) {
+	if msg == nil {
+		return nil, errNilMessage
+	}
+	vcMsg := msg.GetViewchange()
+	return parseViewChangeMessage(vcMsg, msg.GetType())
 }
 
 // ParseNewViewMessage parses new view message into FBFTMessage structure

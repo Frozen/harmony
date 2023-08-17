@@ -86,11 +86,18 @@ func (consensus *Consensus) HandleMessageUpdate(ctx context.Context, msg *msg_pb
 
 	// Parse FBFT message
 	var fbftMsg *FBFTMessage
+	var fbftMsgs []*FBFTMessage
 	var err error
-	switch t := msg.Type; true {
-	case t == msg_pb.MessageType_VIEWCHANGE:
+	switch msg.Type {
+	case msg_pb.MessageType_MULTIPLE_VIEWCHANGE:
+		fbftMsgs, err = ParseMultiViewChangeMessage(msg)
+		if err != nil {
+			return err
+		}
+		fbftMsg = fbftMsgs[0]
+	case msg_pb.MessageType_VIEWCHANGE:
 		fbftMsg, err = ParseViewChangeMessage(msg)
-	case t == msg_pb.MessageType_NEWVIEW:
+	case msg_pb.MessageType_NEWVIEW:
 		members := consensus.Decider.Participants()
 		fbftMsg, err = ParseNewViewMessage(msg, members)
 	default:
@@ -130,6 +137,8 @@ func (consensus *Consensus) HandleMessageUpdate(ctx context.Context, msg *msg_pb
 	// Handle view change messages
 	case t == msg_pb.MessageType_VIEWCHANGE && canHandleViewChange:
 		consensus.onViewChange(fbftMsg)
+	case t == msg_pb.MessageType_MULTIPLE_VIEWCHANGE && canHandleViewChange:
+		consensus.onMultiViewChange(fbftMsgs)
 	case t == msg_pb.MessageType_NEWVIEW && canHandleViewChange:
 		consensus.onNewView(fbftMsg)
 	}
@@ -331,7 +340,6 @@ func (consensus *Consensus) StartChannel() {
 	consensus.mutex.Lock()
 	consensus.isInitialLeader = consensus.isLeader()
 	if consensus.isInitialLeader {
-		consensus.start = true
 		consensus.getLogger().Info().Time("time", time.Now()).Msg("[ConsensusMainLoop] Send ReadySignal")
 		consensus.mutex.Unlock()
 		consensus.ReadySignal(SyncProposal)
@@ -377,7 +385,7 @@ func (consensus *Consensus) Tick() {
 }
 
 func (consensus *Consensus) tick() {
-	if !consensus.start && consensus.isInitialLeader {
+	if !consensus.isInitialLeader {
 		return
 	}
 	for k, v := range consensus.consensusTimeout {

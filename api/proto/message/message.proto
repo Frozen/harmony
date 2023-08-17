@@ -26,6 +26,7 @@ enum MessageType {
   COMMITTED = 5;
   VIEWCHANGE = 6;
   NEWVIEW = 7;
+  MULTIPLE_VIEWCHANGE = 8;
   DRAND_INIT = 10 [deprecated=true];
   DRAND_COMMIT = 11 [deprecated=true];
   LOTTERY_REQUEST = 12 [deprecated=true]; // it should be either ENTER or GETPLAYERS but it will be removed later.
@@ -47,6 +48,7 @@ message Message {
     ViewChangeRequest viewchange = 7;
     // Refactor this later after demo.
     LotteryRequest lottery_request = 8 [deprecated=true];
+    MultipleViewChangeRequest multiple_viewchange = 9;
   }
 }
 
@@ -96,6 +98,10 @@ message DrandRequest {
   bytes sender_pubkey = 2 [deprecated=true];
   bytes block_hash = 3 [deprecated=true];
   bytes payload = 4 [deprecated=true];
+}
+
+message MultipleViewChangeRequest {
+  repeated ViewChangeRequest viewchange = 1;
 }
 
 message ViewChangeRequest {

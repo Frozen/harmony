@@ -27,8 +27,8 @@ const (
 	localnetV1Epoch = 1
 
 	localnetEpochBlock1      = 5
-	localnetBlocksPerEpoch   = 64
-	localnetBlocksPerEpochV2 = 64
+	localnetBlocksPerEpoch   = 12
+	localnetBlocksPerEpochV2 = 12
 
 	localnetVdfDifficulty = 5000 // This takes about 10s to finish the vdf
 )
