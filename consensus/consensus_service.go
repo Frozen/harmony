@@ -1,6 +1,7 @@
 package consensus
 
 import (
+	"fmt"
 	"math/big"
 	"sync/atomic"
 	"time"
@@ -310,6 +311,7 @@ func (consensus *Consensus) updateConsensusInformation() Mode {
 	nextEpoch := new(big.Int).Add(curHeader.Epoch(), common.Big1)
 
 	// Overwrite nextEpoch if the shard state has a epoch number
+	fmt.Println("curHeader.IsLastBlockInEpoch()====", curHeader.IsLastBlockInEpoch())
 	if curHeader.IsLastBlockInEpoch() {
 		nextShardState, err := curHeader.GetShardState()
 		if err != nil {
@@ -348,6 +350,7 @@ func (consensus *Consensus) updateConsensusInformation() Mode {
 	curShardState, err := committee.WithStakingEnabled.ReadFromDB(
 		curEpoch, consensus.Blockchain(),
 	)
+	fmt.Printf("Cur shard state %+v %+v\n", curShardState, err, curEpoch)
 	if err != nil {
 		consensus.getLogger().Error().
 			Err(err).

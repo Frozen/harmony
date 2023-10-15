@@ -206,6 +206,7 @@ func (v *stakedVoteWeight) IsAllSigsCollected() bool {
 func (v *stakedVoteWeight) SetVoters(
 	subCommittee *shard.Committee, epoch *big.Int,
 ) (*TallyResult, error) {
+	panic("stakedVoteWeight SetVoters")
 	v.ResetPrepareAndCommitVotes()
 	v.ResetViewChangeVotes()
 

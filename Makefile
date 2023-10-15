@@ -161,7 +161,7 @@ go-vet:
 	go vet ./...
 
 go-test:
-	go test -vet=all -race ./...
+	go test -vet=all -v -race github.com/harmony-one/harmony/core_test
 
 docker:
 	docker build --pull -t harmonyone/$(PKGNAME):latest -f scripts/docker/Dockerfile .

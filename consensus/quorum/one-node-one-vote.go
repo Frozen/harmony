@@ -84,6 +84,7 @@ func (v *uniformVoteWeight) IsAllSigsCollected() bool {
 func (v *uniformVoteWeight) SetVoters(
 	subCommittee *shard.Committee, epoch *big.Int,
 ) (*TallyResult, error) {
+	panic("uniformVoteWeight SetVoters")
 	// NO-OP do not add anything here
 	return nil, nil
 }

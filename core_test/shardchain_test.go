@@ -2,6 +2,7 @@ package core_test
 
 import (
 	"fmt"
+	"math/big"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -19,6 +20,7 @@ import (
 	"github.com/harmony-one/harmony/node"
 	"github.com/harmony-one/harmony/p2p"
 	"github.com/harmony-one/harmony/shard"
+	"github.com/harmony-one/harmony/shard/committee"
 	"github.com/stretchr/testify/require"
 )
 
@@ -58,14 +60,17 @@ func TestAddNewBlock(t *testing.T) {
 	nodeconfig.SetNetworkType(nodeconfig.Testnet)
 	var block *types.Block
 	node := node.New(host, consensus, engine, collection, nil, nil, nil, nil, nil, reg)
+	curShardState, err := committee.WithStakingEnabled.ReadFromDB(
+		big.NewInt(0), consensus.Blockchain(),
+	)
 	commitSigs := make(chan []byte, 1)
 	commitSigs <- []byte{}
 	block, err = node.Worker.FinalizeNewBlock(
-		commitSigs, func() uint64 { return uint64(0) }, common.Address{}, nil, nil,
+		commitSigs, func() uint64 { return uint64(0) }, common.Address{}, nil, curShardState,
 	)
-	if err != nil {
-		t.Fatal("cannot finalize new block")
-	}
+	require.NoError(t, err, "error when finalizing new block")
+
+	fmt.Println(curShardState, err)
 
 	nn := node.Blockchain().CurrentBlock()
 	t.Log("[*]", nn.NumberU64(), nn.Hash().Hex(), nn.ParentHash())
@@ -75,6 +80,24 @@ func TestAddNewBlock(t *testing.T) {
 
 	pk, epoch, count, shifts, err := blockchain.LeaderRotationMeta()
 	fmt.Println("pk", pk, "epoch", epoch, "count", count, "shifts", shifts, "err", err)
+
+	env, err := node.Worker.UpdateCurrent()
+	require.NoError(t, err)
+
+	t.Logf("%+v", env.CurrentHeader().NumberU64())
+	select {
+	case commitSigs <- []byte{}:
+	default:
+		t.Fatalf("channel is full")
+	}
+	curShardState, err = committee.WithStakingEnabled.ReadFromDB(
+		big.NewInt(0), consensus.Blockchain(),
+	)
+
+	block, err = node.Worker.FinalizeNewBlock(
+		commitSigs, func() uint64 { return uint64(1) }, common.Address{}, nil, curShardState,
+	)
+	require.NoError(t, err, "error when finalizing new block")
 
 	t.Log("#", block.Header().NumberU64(), node.Blockchain().CurrentBlock().NumberU64(), block.Hash().Hex(), block.ParentHash())
 
