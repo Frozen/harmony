@@ -246,6 +246,17 @@ func setupNodeAndRun(hc harmonyconfig.HarmonyConfig) {
 	nodeconfig.GetDefaultConfig().IsOffline = nodeConfig.IsOffline
 	nodeconfig.GetDefaultConfig().SyncClient = nodeConfig.SyncClient
 
+	go func() {
+		chain := currentNode.Blockchain()
+		for i := 0; i < 200_000; i++ {
+			blk := chain.GetBlockByNumber(38336337 - uint64(i))
+
+			// format: number: 84818516 view: 84825616 ts: 1770593482 h: 1970-01-21 11:49:53.482
+			tm := blk.Header().Time()
+			fmt.Printf("number: %d view: %d ts: %d h: %s\n", blk.NumberU64(), blk.Header().ViewID().Uint64(), tm.Int64(), time.Unix(int64(tm.Int64()), (tm.Int64()%1000)*1e6).Format(time.RFC3339Nano))
+		}
+	}()
+
 	// Check NTP and time accuracy
 	// It skips the time accuracy check on the localnet since all nodes are running on the same machine
 	if hc.Network.NetworkType != nodeconfig.Localnet {
