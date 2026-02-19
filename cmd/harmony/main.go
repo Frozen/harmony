@@ -249,11 +249,13 @@ func setupNodeAndRun(hc harmonyconfig.HarmonyConfig) {
 	go func() {
 		f, err := os.Open("/tmp/blocks-200k-dev.txt")
 		if err != nil {
+			panic(err)
 			return
 		}
 		defer f.Close()
 
 		chain := currentNode.Blockchain()
+		fmt.Println("Start writing block timestamps 200k")
 		for i := 0; i < 200_000; i++ {
 			blk := chain.GetBlockByNumber(38336337 - uint64(i))
 
