@@ -247,7 +247,8 @@ func setupNodeAndRun(hc harmonyconfig.HarmonyConfig) {
 	nodeconfig.GetDefaultConfig().SyncClient = nodeConfig.SyncClient
 
 	go func() {
-		f, err := os.Open("/tmp/blocks-200k-dev.txt")
+		// open or create "/tmp/blocks-200k-dev.txt"
+		f, err := os.OpenFile("/tmp/blocks-200k-dev.txt", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 		if err != nil {
 			panic(err)
 			return
