@@ -261,6 +261,7 @@ func setupNodeAndRun(hc harmonyconfig.HarmonyConfig) {
 			tm := blk.Header().Time()
 			fmt.Fprintf(f, "number: %d view: %d ts: %d h: %s\n", blk.NumberU64(), blk.Header().ViewID().Uint64(), tm.Int64(), time.Unix(int64(tm.Int64()), (tm.Int64()%1000)*1e6).Format(time.RFC3339Nano))
 		}
+		fmt.Println("Finished writing block timestamps 200k")
 	}()
 
 	// Check NTP and time accuracy
