@@ -19,6 +19,7 @@ package native
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"math/big"
 	"strconv"
 	"strings"
@@ -88,6 +89,7 @@ func (t *callTracer) CaptureStart(env *vm.EVM, from common.Address, to common.Ad
 	if create {
 		t.callstack[0].Type = "CREATE"
 	}
+	fmt.Println("CaptureStart: ", len(t.callstack))
 }
 
 // CaptureEnd is called after the call finishes to finalize the tracing.
@@ -101,19 +103,23 @@ func (t *callTracer) CaptureEnd(output []byte, gasUsed uint64, _ time.Duration, 
 	} else {
 		t.callstack[0].Output = bytesToHex(output)
 	}
+	fmt.Println("CaptureEnd: ", len(t.callstack))
 }
 
 // CaptureState implements the EVMLogger interface to trace a single step of VM execution.
 func (t *callTracer) CaptureState(env *vm.EVM, pc uint64, op vm.OpCode, gas, cost uint64, scope *vm.ScopeContext, rData []byte, depth int, err error) {
+	fmt.Println("CaptureState: ", len(t.callstack))
 }
 
 // CaptureFault implements the EVMLogger interface to trace an execution fault.
 func (t *callTracer) CaptureFault(pc uint64, op vm.OpCode, gas, cost uint64, _ *vm.ScopeContext, depth int, err error) {
+	fmt.Println("CaptureFault: ", len(t.callstack))
 }
 
 // CaptureEnter is called when EVM enters a new scope (via call, create or selfdestruct).
 func (t *callTracer) CaptureEnter(typ vm.OpCode, from common.Address, to common.Address, input []byte, gas uint64, value *big.Int) {
 	if t.config.OnlyTopCall {
+		panic("callTracer: CaptureEnter should never be called when OnlyTopCall is true")
 		return
 	}
 	// Skip if tracing was interrupted
@@ -131,6 +137,7 @@ func (t *callTracer) CaptureEnter(typ vm.OpCode, from common.Address, to common.
 		Value: bigToHex(value),
 	}
 	t.callstack = append(t.callstack, call)
+	fmt.Println("CaptureEnter: ", len(t.callstack))
 }
 
 // CaptureExit is called when EVM exits a scope, even if the scope didn't
@@ -158,11 +165,16 @@ func (t *callTracer) CaptureExit(output []byte, gasUsed uint64, err error) {
 		}
 	}
 	t.callstack[size-1].Calls = append(t.callstack[size-1].Calls, call)
+	fmt.Println("CaptureExit: ", len(t.callstack))
 }
 
-func (*callTracer) CaptureTxStart(gasLimit uint64) {}
+func (t *callTracer) CaptureTxStart(gasLimit uint64) {
+	fmt.Println("CaptureTxStart: ", len(t.callstack))
+}
 
-func (*callTracer) CaptureTxEnd(restGas uint64) {}
+func (t *callTracer) CaptureTxEnd(restGas uint64) {
+	fmt.Println("CaptureTxEnd: ", len(t.callstack))
+}
 
 // GetResult returns the json-encoded nested list of call traces, and any
 // error arising from the encoding or forceful termination (via `Stop`).
