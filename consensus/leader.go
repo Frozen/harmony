@@ -337,7 +337,7 @@ func (consensus *Consensus) onCommit(recvMsg *FBFTMessage) {
 		if maxWaitTime > waitTime {
 			waitTime = maxWaitTime
 		}
-		if consensus.isRotation(consensus.Blockchain().CurrentBlock().Epoch()) {
+		if consensus.Blockchain().Config().IsFinalCommitNoWait(consensus.Blockchain().CurrentBlock().Epoch()) {
 			waitTime = 0
 		}
 		go consensus.finalCommit(waitTime, viewID, consensus.isLeader())

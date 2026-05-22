@@ -325,6 +325,7 @@ var (
 		SlashBallotSignerFixEpoch:             big.NewInt(52650),
 		VerifyBeaconHeaderSlashEpoch:          big.NewInt(53000),
 		BloomEpoch:                            big.NewInt(53508),
+		FinalCommitNoWaitEpoch:                EpochTBD,
 	}
 
 	// StressnetChainConfig contains the chain parameters for the Stress test network.
@@ -546,6 +547,7 @@ var (
 		big.NewInt(1),                      // SlashBallotSignerFixEpoch
 		big.NewInt(1),                      // VerifyBeaconHeaderSlashEpoch
 		big.NewInt(1),                      // BloomEpoch
+		EpochTBD,                           // FinalCommitNoWaitEpoch
 	}
 
 	// TestChainConfig ...
@@ -621,6 +623,7 @@ var (
 		big.NewInt(1),        // SlashBallotSignerFixEpoch
 		big.NewInt(1),        // VerifyBeaconHeaderSlashEpoch
 		big.NewInt(1),        // BloomEpoch
+		EpochTBD,             // FinalCommitNoWaitEpoch
 	}
 
 	// TestRules ...
@@ -882,6 +885,10 @@ type ChainConfig struct {
 	// have individual activation epochs; each feature is active once the chain
 	// reaches the earlier of BloomEpoch and that feature's epoch.
 	BloomEpoch *big.Int `json:"bloom-epoch,omitempty"`
+
+	// FinalCommitNoWaitEpoch is the first epoch where the final commit is
+	// triggered immediately without waiting (zero wait time).
+	FinalCommitNoWaitEpoch *big.Int `json:"final-commit-no-wait-epoch,omitempty"`
 }
 
 // String implements the fmt.Stringer interface.
@@ -1239,6 +1246,10 @@ func (c *ChainConfig) IsLeaderRotationExternalValidatorsAllowed(epoch *big.Int) 
 
 func (c *ChainConfig) IsLeaderRotationV2Epoch(epoch *big.Int) bool {
 	return c.isBloomFeatureActive(c.LeaderRotationV2Epoch, epoch)
+}
+
+func (c *ChainConfig) IsFinalCommitNoWait(epoch *big.Int) bool {
+	return isForked(c.FinalCommitNoWaitEpoch, epoch)
 }
 
 // IsFeeCollectEpoch determines whether Txn Fees will be collected into the community-managed account.
