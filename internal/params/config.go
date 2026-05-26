@@ -325,7 +325,7 @@ var (
 		SlashBallotSignerFixEpoch:             big.NewInt(52650),
 		VerifyBeaconHeaderSlashEpoch:          big.NewInt(53000),
 		BloomEpoch:                            big.NewInt(53508),
-		FinalCommitNoWaitEpoch:                EpochTBD,
+		FinalCommitNoWaitEpoch:                big.NewInt(50200),
 	}
 
 	// StressnetChainConfig contains the chain parameters for the Stress test network.
