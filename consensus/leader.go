@@ -221,6 +221,11 @@ func (consensus *Consensus) onPrepare(recvMsg *FBFTMessage) {
 func (consensus *Consensus) onCommit(recvMsg *FBFTMessage) {
 	//// Read - Start
 	if !consensus.isRightBlockNumAndViewID(recvMsg) {
+		consensus.getLogger().Warn().
+			Uint64("msgBlockNum", recvMsg.BlockNum).
+			Uint64("msgViewID", recvMsg.ViewID).
+			Str("msgBlockHash", recvMsg.BlockHash.Hex()).
+			Msg("[OnCommit] ignoring commit with mismatched block number or view ID")
 		return
 	}
 	// proceed only when the message is not received before
@@ -255,7 +260,11 @@ func (consensus *Consensus) onCommit(recvMsg *FBFTMessage) {
 	logger.Debug().Msg("[OnCommit] Received new commit message")
 	var sign bls_core.Sign
 	if err := sign.Deserialize(recvMsg.Payload); err != nil {
-		logger.Debug().Msg("[OnCommit] Failed to deserialize bls signature")
+		logger.Warn().
+			Err(err).
+			Int("payloadLen", len(recvMsg.Payload)).
+			Hex("payload", recvMsg.Payload).
+			Msg("[OnCommit] Failed to deserialize bls signature")
 		return
 	}
 
@@ -274,6 +283,11 @@ func (consensus *Consensus) onCommit(recvMsg *FBFTMessage) {
 	logger = logger.With().
 		Uint64("MsgViewID", recvMsg.ViewID).
 		Uint64("MsgBlockNum", recvMsg.BlockNum).
+		Uint64("blockNum", blockObj.NumberU64()).
+		Uint64("blockViewID", blockObj.Header().ViewID().Uint64()).
+		Str("blockHash", blockObj.Hash().Hex()).
+		Int("commitPayloadLen", len(commitPayload)).
+		Hex("commitPayload", commitPayload).
 		Logger()
 
 	signerPubKey := &bls_core.PublicKey{}
@@ -285,9 +299,17 @@ func (consensus *Consensus) onCommit(recvMsg *FBFTMessage) {
 		}
 	}
 	if !sign.VerifyHash(signerPubKey, commitPayload) {
-		logger.Error().Msg("[OnCommit] Cannot verify commit message")
+		logger.Error().
+			Str("signerPubKey", signerPubKey.SerializeToHexStr()).
+			Int("signatureLen", len(recvMsg.Payload)).
+			Hex("signature", recvMsg.Payload).
+			Msg("[OnCommit] Cannot verify commit message")
 		return
 	}
+	logger.Info().
+		Int("signersInMessage", len(recvMsg.SenderPubkeys)).
+		Str("signerPubKey", signerPubKey.SerializeToHexStr()).
+		Msg("[OnCommit] verified commit signature")
 
 	//// Write - Start
 	// Check for potential double signing
@@ -303,6 +325,7 @@ func (consensus *Consensus) onCommit(recvMsg *FBFTMessage) {
 		&sign, recvMsg.BlockHash,
 		recvMsg.BlockNum, recvMsg.ViewID,
 	); err != nil {
+		logger.Warn().Err(err).Msg("[OnCommit] submit vote commit failed")
 		return
 	}
 	// Set the bitmap indicating that this validator signed.
@@ -311,6 +334,11 @@ func (consensus *Consensus) onCommit(recvMsg *FBFTMessage) {
 			Msg("[OnCommit] commitBitmap.SetKey failed")
 		return
 	}
+	logger.Info().
+		Int64("numReceivedBefore", signerCount).
+		Int64("numReceivedAfter", consensus.decider().SignersCount(quorum.Commit)).
+		Bool("quorumWasMet", quorumWasMet).
+		Msg("[OnCommit] accepted commit vote")
 	//// Write - End
 
 	//// Read - Start

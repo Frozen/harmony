@@ -178,6 +178,14 @@ func (consensus *Consensus) sendCommitMessages(blockObj *types.Block) {
 	// Sign commit signature on the received block and construct the p2p messages
 	commitPayload := signature.ConstructCommitPayload(consensus.Blockchain().Config(),
 		blockObj.Epoch(), blockObj.Hash(), blockObj.NumberU64(), blockObj.Header().ViewID().Uint64())
+	consensus.getLogger().Info().
+		Uint64("blockNum", blockObj.NumberU64()).
+		Uint64("viewID", blockObj.Header().ViewID().Uint64()).
+		Str("blockHash", blockObj.Hash().Hex()).
+		Int("commitPayloadLen", len(commitPayload)).
+		Hex("commitPayload", commitPayload).
+		Int("keys", len(priKeys)).
+		Msg("[sendCommitMessages] signing commit payload")
 
 	p2pMsgs := consensus.constructP2pMessages(msg_pb.MessageType_COMMIT, commitPayload, priKeys)
 
@@ -187,6 +195,7 @@ func (consensus *Consensus) sendCommitMessages(blockObj *types.Block) {
 		consensus.getLogger().Info().
 			Uint64("blockNum", consensus.BlockNum()).
 			Hex("blockHash", consensus.current.blockHash[:]).
+			Int("messages", len(p2pMsgs)).
 			Msg("[sendCommitMessages] Sent Commit Message!!")
 	}
 }
@@ -416,15 +425,29 @@ func (consensus *Consensus) getPriKeysInCommittee() ([]*bls.PrivateKeyWrapper, e
 	priKeys := []*bls.PrivateKeyWrapper{}
 	for i, key := range consensus.priKey {
 		if !consensus.isValidatorInCommittee(key.Pub.Bytes) {
+			consensus.getLogger().Debug().
+				Str("pubKey", key.Pub.Bytes.Hex()).
+				Msg("[getPriKeysInCommittee] local BLS key is not in committee")
 			continue
 		}
 		priKeys = append(priKeys, &consensus.priKey[i])
 	}
+	consensus.getLogger().Info().
+		Int("localKeys", len(consensus.priKey)).
+		Int("committeeKeys", len(priKeys)).
+		Msg("[getPriKeysInCommittee] selected local committee keys")
 	return priKeys, nil
 }
 
 func (consensus *Consensus) constructP2pMessages(msgType msg_pb.MessageType, payloadForSign []byte, priKeys []*bls.PrivateKeyWrapper) []*NetworkMessage {
 	p2pMsgs := []*NetworkMessage{}
+	consensus.getLogger().Info().
+		Str("messageType", msgType.String()).
+		Bool("aggregateSig", consensus.AggregateSig).
+		Int("keys", len(priKeys)).
+		Int("payloadForSignLen", len(payloadForSign)).
+		Hex("payloadForSign", payloadForSign).
+		Msg("[constructP2pMessages] constructing consensus p2p messages")
 	if consensus.AggregateSig {
 		networkMessage, err := consensus.construct(msgType, payloadForSign, priKeys)
 		if err != nil {
@@ -452,6 +475,10 @@ func (consensus *Consensus) constructP2pMessages(msgType msg_pb.MessageType, pay
 			p2pMsgs = append(p2pMsgs, networkMessage)
 		}
 	}
+	consensus.getLogger().Info().
+		Str("messageType", msgType.String()).
+		Int("messages", len(p2pMsgs)).
+		Msg("[constructP2pMessages] constructed consensus p2p messages")
 	return p2pMsgs
 }
 
@@ -461,12 +488,21 @@ func (consensus *Consensus) broadcastConsensusP2pMessages(p2pMsgs []*NetworkMess
 	for _, p2pMsg := range p2pMsgs {
 		// TODO: this will not return immediately, may block
 		if consensus.current.Mode() != Listening {
+			consensus.getLogger().Info().
+				Str("messageType", p2pMsg.MessageType.String()).
+				Int("messageBytes", len(p2pMsg.Bytes)).
+				Str("groupID", groupID[0].String()).
+				Msg("[broadcastConsensusP2pMessages] sending consensus message")
 			if err := consensus.msgSender.SendWithoutRetry(
 				groupID,
 				p2p.ConstructMessage(p2pMsg.Bytes),
 			); err != nil {
 				return err
 			}
+		} else {
+			consensus.getLogger().Warn().
+				Str("messageType", p2pMsg.MessageType.String()).
+				Msg("[broadcastConsensusP2pMessages] not sending consensus message in Listening mode")
 		}
 	}
 	return nil

@@ -97,21 +97,63 @@ func (consensus *Consensus) construct(
 	case msg_pb.MessageType_PREPARE:
 		needMsgSig = false
 		sig := bls_core.Sign{}
+		signedCount := 0
 		for _, priKey := range priKeys {
 			if s := priKey.Pri.SignHash(consensusMsg.BlockHash); s != nil {
 				sig.Add(s)
+				signedCount++
+			} else {
+				consensus.getLogger().Warn().
+					Str("phase", p.String()).
+					Str("pubKey", priKey.Pub.Bytes.Hex()).
+					Uint64("blockNum", consensusMsg.BlockNum).
+					Uint64("viewID", consensusMsg.ViewId).
+					Hex("blockHash", consensusMsg.BlockHash).
+					Msg("[construct] BLS signing returned nil")
 			}
 		}
 		consensusMsg.Payload = sig.Serialize()
+		consensus.getLogger().Info().
+			Str("phase", p.String()).
+			Int("keysProvided", len(priKeys)).
+			Int("signedCount", signedCount).
+			Int("payloadLen", len(consensusMsg.Payload)).
+			Uint64("blockNum", consensusMsg.BlockNum).
+			Uint64("viewID", consensusMsg.ViewId).
+			Hex("blockHash", consensusMsg.BlockHash).
+			Msg("[construct] Constructed validator consensus signature")
 	case msg_pb.MessageType_COMMIT:
 		needMsgSig = false
 		sig := bls_core.Sign{}
+		signedCount := 0
 		for _, priKey := range priKeys {
 			if s := priKey.Pri.SignHash(payloadForSign); s != nil {
 				sig.Add(s)
+				signedCount++
+			} else {
+				consensus.getLogger().Warn().
+					Str("phase", p.String()).
+					Str("pubKey", priKey.Pub.Bytes.Hex()).
+					Uint64("blockNum", consensusMsg.BlockNum).
+					Uint64("viewID", consensusMsg.ViewId).
+					Hex("blockHash", consensusMsg.BlockHash).
+					Int("commitPayloadLen", len(payloadForSign)).
+					Hex("commitPayload", payloadForSign).
+					Msg("[construct] BLS signing returned nil")
 			}
 		}
 		consensusMsg.Payload = sig.Serialize()
+		consensus.getLogger().Info().
+			Str("phase", p.String()).
+			Int("keysProvided", len(priKeys)).
+			Int("signedCount", signedCount).
+			Int("payloadLen", len(consensusMsg.Payload)).
+			Uint64("blockNum", consensusMsg.BlockNum).
+			Uint64("viewID", consensusMsg.ViewId).
+			Hex("blockHash", consensusMsg.BlockHash).
+			Int("commitPayloadLen", len(payloadForSign)).
+			Hex("commitPayload", payloadForSign).
+			Msg("[construct] Constructed validator consensus signature")
 	case msg_pb.MessageType_PREPARED:
 		consensusMsg.Block = consensus.current.block
 		consensusMsg.Payload = consensus.constructQuorumSigAndBitmap(quorum.Prepare)
