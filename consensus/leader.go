@@ -365,9 +365,29 @@ func (consensus *Consensus) onCommit(recvMsg *FBFTMessage) {
 		if maxWaitTime > waitTime {
 			waitTime = maxWaitTime
 		}
-		if consensus.Blockchain().Config().IsFinalCommitNoWait(consensus.Blockchain().CurrentBlock().Epoch()) {
+		epoch := consensus.Blockchain().CurrentBlock().Epoch()
+		finalCommitNoWait := consensus.Blockchain().Config().IsFinalCommitNoWait(epoch)
+		oneSecondBlock := consensus.Blockchain().Config().IsOneSecond(epoch)
+		if finalCommitNoWait {
 			waitTime = 0
 		}
+		if oneSecondBlock {
+			const gracePeriod = 100 * time.Millisecond
+			remainingBlockTime := time.Until(consensus.NextBlockDue) - 50*time.Millisecond
+			waitTime = gracePeriod
+			if remainingBlockTime < waitTime {
+				waitTime = remainingBlockTime
+			}
+			if waitTime < 0 {
+				waitTime = 0
+			}
+		}
+		logger.Info().
+			Str("maxWaitTime", maxWaitTime.String()).
+			Str("waitTime", waitTime.String()).
+			Bool("finalCommitNoWait", finalCommitNoWait).
+			Bool("oneSecondBlock", oneSecondBlock).
+			Msg("[OnCommit] calculated final commit grace period")
 		go consensus.finalCommit(waitTime, viewID, consensus.isLeader())
 
 		consensus.msgSender.StopRetry(msg_pb.MessageType_PREPARED)
