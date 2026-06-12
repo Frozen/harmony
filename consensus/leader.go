@@ -372,7 +372,7 @@ func (consensus *Consensus) onCommit(recvMsg *FBFTMessage) {
 			waitTime = 0
 		}
 		if oneSecondBlock {
-			const gracePeriod = 100 * time.Millisecond
+			const gracePeriod = 200 * time.Millisecond
 			remainingBlockTime := time.Until(consensus.NextBlockDue) - 50*time.Millisecond
 			waitTime = gracePeriod
 			if remainingBlockTime < waitTime {
