@@ -10,7 +10,7 @@ import (
 )
 
 func TestSafetyRulesRejectsSecondVoteInSameView(t *testing.T) {
-	core := NewCore(Block{ID: "genesis", View: 0})
+	core := newCore(Block{ID: "genesis", View: 0})
 	persist := &recordingPersister{}
 	rules := NewSafetyRules(core, SafetyState{
 		LockedQC: QC{Block: "genesis", View: 0},
@@ -29,7 +29,7 @@ func TestSafetyRulesRejectsSecondVoteInSameView(t *testing.T) {
 }
 
 func TestSafetyRulesVotesForDescendantOfLockedBlock(t *testing.T) {
-	core := NewCore(Block{ID: "genesis", View: 0})
+	core := newCore(Block{ID: "genesis", View: 0})
 	b1 := Block{ID: "b1", Parent: "genesis", View: 1, Justify: QC{Block: "genesis", View: 0}}
 	b2 := Block{ID: "b2", Parent: "b1", View: 2, Justify: QC{Block: "b1", View: 1}}
 	require.NoError(t, acceptWithoutCommit(core, b1))
@@ -52,7 +52,7 @@ func TestSafetyRulesVotesForDescendantOfLockedBlock(t *testing.T) {
 }
 
 func TestSafetyRulesUnlocksForHigherQCOnConflictingBranch(t *testing.T) {
-	core := NewCore(Block{ID: "genesis", View: 0})
+	core := newCore(Block{ID: "genesis", View: 0})
 	locked := Block{ID: "locked", Parent: "genesis", View: 1, Justify: QC{Block: "genesis", View: 0}}
 	fork1 := Block{ID: "fork1", Parent: "genesis", View: 2, Justify: QC{Block: "genesis", View: 0}}
 	fork2 := Block{ID: "fork2", Parent: "fork1", View: 3, Justify: QC{Block: "fork1", View: 2}}
@@ -72,7 +72,7 @@ func TestSafetyRulesUnlocksForHigherQCOnConflictingBranch(t *testing.T) {
 }
 
 func TestSafetyRulesRejectsConflictingBranchWithoutHigherQC(t *testing.T) {
-	core := NewCore(Block{ID: "genesis", View: 0})
+	core := newCore(Block{ID: "genesis", View: 0})
 	locked := Block{ID: "locked", Parent: "genesis", View: 2, Justify: QC{Block: "genesis", View: 0}}
 	fork := Block{ID: "fork", Parent: "genesis", View: 3, Justify: QC{Block: "genesis", View: 0}}
 	for _, block := range []Block{locked, fork} {
@@ -91,7 +91,7 @@ func TestSafetyRulesRejectsConflictingBranchWithoutHigherQC(t *testing.T) {
 }
 
 func TestSafetyRulesRejectsConflictingBranchWithEqualQC(t *testing.T) {
-	core := NewCore(Block{ID: "genesis", View: 0})
+	core := newCore(Block{ID: "genesis", View: 0})
 	locked := Block{ID: "locked", Parent: "genesis", View: 2, Justify: QC{Block: "genesis", View: 0}}
 	fork := Block{ID: "fork", Parent: "genesis", View: 2, Justify: QC{Block: "genesis", View: 0}}
 	proposal := Block{ID: "proposal", Parent: "fork", View: 3, Justify: QC{Block: "fork", View: 2}}
@@ -109,7 +109,7 @@ func TestSafetyRulesRejectsConflictingBranchWithEqualQC(t *testing.T) {
 }
 
 func TestSafetyRulesRestoresLastVoteAcrossRestart(t *testing.T) {
-	core := NewCore(Block{ID: "genesis", View: 0})
+	core := newCore(Block{ID: "genesis", View: 0})
 	left := Block{ID: "left", Parent: "genesis", View: 1, Justify: QC{Block: "genesis", View: 0}}
 	right := Block{ID: "right", Parent: "genesis", View: 1, Justify: QC{Block: "genesis", View: 0}}
 	require.NoError(t, acceptWithoutCommit(core, left))
@@ -131,7 +131,7 @@ func TestSafetyRulesRestoresLastVoteAcrossRestart(t *testing.T) {
 }
 
 func TestSafetyRulesRetainsHigherLock(t *testing.T) {
-	core := NewCore(Block{ID: "genesis", View: 0})
+	core := newCore(Block{ID: "genesis", View: 0})
 	low := Block{ID: "low", Parent: "genesis", View: 1, Justify: QC{Block: "genesis", View: 0}}
 	locked := Block{ID: "locked", Parent: "genesis", View: 5, Justify: QC{Block: "genesis", View: 0}}
 	parent := Block{ID: "parent", Parent: "low", View: 6, Justify: QC{Block: "low", View: 1}}
@@ -151,7 +151,7 @@ func TestSafetyRulesRetainsHigherLock(t *testing.T) {
 }
 
 func TestSafetyRulesPersistsBeforeReturningVote(t *testing.T) {
-	core := NewCore(Block{ID: "genesis", View: 0})
+	core := newCore(Block{ID: "genesis", View: 0})
 	b1 := Block{ID: "b1", Parent: "genesis", View: 1, Justify: QC{Block: "genesis", View: 0}}
 	require.NoError(t, acceptWithoutCommit(core, b1))
 
@@ -168,7 +168,7 @@ func TestSafetyRulesPersistsBeforeReturningVote(t *testing.T) {
 }
 
 func TestSafetyRulesDoesNotShareStateWithPersister(t *testing.T) {
-	core := NewCore(Block{ID: "genesis", View: 0})
+	core := newCore(Block{ID: "genesis", View: 0})
 	b1 := Block{
 		ID:      "b1",
 		Parent:  "genesis",
@@ -204,7 +204,7 @@ func TestSafetyRulesDoesNotShareStateWithPersister(t *testing.T) {
 }
 
 func TestSafetyRulesSerializesConflictingVotes(t *testing.T) {
-	core := NewCore(Block{ID: "genesis", View: 0})
+	core := newCore(Block{ID: "genesis", View: 0})
 	left := Block{ID: "left", Parent: "genesis", View: 1, Justify: QC{Block: "genesis", View: 0}}
 	right := Block{ID: "right", Parent: "genesis", View: 1, Justify: QC{Block: "genesis", View: 0}}
 	require.NoError(t, acceptWithoutCommit(core, left))
@@ -250,7 +250,7 @@ func TestSafetyRulesSerializesConflictingVotes(t *testing.T) {
 }
 
 func TestCoreOwnsAcceptedQCEvidence(t *testing.T) {
-	core := NewCore(Block{ID: "genesis", View: 0})
+	core := newCore(Block{ID: "genesis", View: 0})
 	b1 := Block{ID: "b1", Parent: "genesis", View: 1, Justify: QC{Block: "genesis", View: 0}}
 	b2 := Block{
 		ID:      "b2",

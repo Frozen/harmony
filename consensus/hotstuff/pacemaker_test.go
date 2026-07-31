@@ -41,10 +41,10 @@ func TestBroadcastTimeoutsProduceEquivalentCertificatesAtEveryReplica(t *testing
 
 func TestPacemakerTimeoutChangesLeaderWithoutProducingBlock(t *testing.T) {
 	committee := testCommittee(t, "alice", "bob", "carol")
-	pacemaker := NewPacemaker(committee, 3)
+	pacemaker := newPacemaker(committee, 3)
 	require.Equal(t, MemberID("carol"), pacemaker.Leader())
 
-	err := pacemaker.AdvanceTimeout(TimeoutCertificate{
+	err := pacemaker.advanceTimeout(TimeoutCertificate{
 		View:    3,
 		HighQC:  certifiedQC("b2", 2, "alice", "bob", "carol"),
 		Signers: []MemberID{"alice", "bob", "carol"},
@@ -57,9 +57,9 @@ func TestPacemakerTimeoutChangesLeaderWithoutProducingBlock(t *testing.T) {
 
 func TestPacemakerQCAdvancesToNextLeader(t *testing.T) {
 	committee := testCommittee(t, "alice", "bob", "carol")
-	pacemaker := NewPacemaker(committee, 1)
+	pacemaker := newPacemaker(committee, 1)
 
-	err := pacemaker.AdvanceQC(certifiedQC("b1", 1, "carol", "alice", "bob"))
+	err := pacemaker.advanceQC(certifiedQC("b1", 1, "carol", "alice", "bob"))
 	require.NoError(t, err)
 	require.Equal(t, View(2), pacemaker.CurrentView())
 	require.Equal(t, MemberID("bob"), pacemaker.Leader())
@@ -68,15 +68,15 @@ func TestPacemakerQCAdvancesToNextLeader(t *testing.T) {
 
 func TestPacemakerRejectsStaleAndUnderpoweredCertificates(t *testing.T) {
 	committee := testCommittee(t, "alice", "bob", "carol", "dave")
-	pacemaker := NewPacemaker(committee, 4)
+	pacemaker := newPacemaker(committee, 4)
 
-	err := pacemaker.AdvanceTimeout(TimeoutCertificate{
+	err := pacemaker.advanceTimeout(TimeoutCertificate{
 		View:    3,
 		Signers: []MemberID{"alice", "bob", "carol"},
 	})
 	require.ErrorIs(t, err, ErrStaleCertificate)
 
-	err = pacemaker.AdvanceTimeout(TimeoutCertificate{
+	err = pacemaker.advanceTimeout(TimeoutCertificate{
 		View:    4,
 		Signers: []MemberID{"alice", "bob"},
 	})
@@ -86,9 +86,9 @@ func TestPacemakerRejectsStaleAndUnderpoweredCertificates(t *testing.T) {
 
 func TestPacemakerRejectsFutureTimeoutCertificate(t *testing.T) {
 	committee := testCommittee(t, "alice", "bob", "carol")
-	pacemaker := NewPacemaker(committee, 4)
+	pacemaker := newPacemaker(committee, 4)
 
-	err := pacemaker.AdvanceTimeout(TimeoutCertificate{
+	err := pacemaker.advanceTimeout(TimeoutCertificate{
 		View:    6,
 		HighQC:  certifiedQC("b5", 5, "alice", "bob", "carol"),
 		Signers: []MemberID{"alice", "bob", "carol"},
@@ -105,8 +105,8 @@ func TestTimeoutPathRejectsUnderpoweredHighQC(t *testing.T) {
 	err := set.Add(Timeout{Voter: "alice", View: 3, HighQC: underpowered})
 	require.ErrorIs(t, err, ErrInsufficientVotingPower)
 
-	pacemaker := NewPacemaker(committee, 3)
-	err = pacemaker.AdvanceTimeout(TimeoutCertificate{
+	pacemaker := newPacemaker(committee, 3)
+	err = pacemaker.advanceTimeout(TimeoutCertificate{
 		View:    3,
 		HighQC:  underpowered,
 		Signers: []MemberID{"alice", "bob", "carol"},
@@ -118,10 +118,10 @@ func TestTimeoutPathRejectsUnderpoweredHighQC(t *testing.T) {
 
 func TestPacemakerOwnsHighQCEvidence(t *testing.T) {
 	committee := testCommittee(t, "alice", "bob", "carol")
-	pacemaker := NewPacemaker(committee, 1)
+	pacemaker := newPacemaker(committee, 1)
 	qc := certifiedQC("b1", 1, "alice", "bob", "carol")
 
-	require.NoError(t, pacemaker.AdvanceQC(qc))
+	require.NoError(t, pacemaker.advanceQC(qc))
 	qc.Signers[0] = "mallory"
 	state := pacemaker.HighQC()
 	state.Signers[0] = "mallory"

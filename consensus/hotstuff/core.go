@@ -21,13 +21,16 @@ var (
 type Core struct {
 	mu        sync.RWMutex
 	blocks    map[BlockID]Block
+	genesis   BlockID
 	committed BlockID
+	authority *QCAuthority
 }
 
-func NewCore(genesis Block) *Core {
+func newCore(genesis Block) *Core {
 	core := &Core{blocks: make(map[BlockID]Block)}
-	if genesis.ID != "" && genesis.Parent == "" {
+	if genesis.ID != "" && genesis.Parent == "" && genesis.View == 0 {
 		core.blocks[genesis.ID] = cloneBlock(genesis)
+		core.genesis = genesis.ID
 		core.committed = genesis.ID
 	}
 	return core
@@ -79,9 +82,10 @@ func (c *Core) lockQC(proposal Block) (QC, bool) {
 	return cloneQC(parent.Justify), true
 }
 
-// Accept validates the proposal's structural QC and applies the direct
-// three-chain commit rule. Returned IDs are newly committed in chain order.
-func (c *Core) Accept(block Block) ([]BlockID, error) {
+// accept validates the proposal's structural QC and applies the direct
+// three-chain commit rule after the caller has verified its certificate.
+// Returned IDs are newly committed in chain order.
+func (c *Core) accept(block Block) ([]BlockID, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if len(c.blocks) == 0 {

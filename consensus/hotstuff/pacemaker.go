@@ -108,9 +108,10 @@ type Pacemaker struct {
 	committee *Committee
 	view      View
 	highQC    QC
+	authority *QCAuthority
 }
 
-func NewPacemaker(committee *Committee, initial View) *Pacemaker {
+func newPacemaker(committee *Committee, initial View) *Pacemaker {
 	return &Pacemaker{committee: committee, view: initial}
 }
 
@@ -132,7 +133,7 @@ func (p *Pacemaker) HighQC() QC {
 	return cloneQC(p.highQC)
 }
 
-func (p *Pacemaker) AdvanceTimeout(certificate TimeoutCertificate) error {
+func (p *Pacemaker) advanceTimeout(certificate TimeoutCertificate) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if certificate.View < p.view {
@@ -159,7 +160,7 @@ func (p *Pacemaker) AdvanceTimeout(certificate TimeoutCertificate) error {
 	return nil
 }
 
-func (p *Pacemaker) AdvanceQC(qc QC) error {
+func (p *Pacemaker) advanceQC(qc QC) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if qc.View < p.view {

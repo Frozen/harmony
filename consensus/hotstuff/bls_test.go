@@ -15,7 +15,7 @@ func TestBLSSignedBroadcastVotesFormVerifiableQC(t *testing.T) {
 		Member{ID: "carol", Power: 1},
 		Member{ID: "dave", Power: 1},
 	)
-	domain := VoteDomain{ChainID: 1, ShardID: 0, Epoch: 42}
+	domain := VoteDomain{ChainID: 1, ShardID: 0, Epoch: 42, Genesis: "genesis"}
 	set := NewBLSVoteSet(committee, "b7", 7, domain)
 
 	for _, voter := range []MemberID{"carol", "alice", "bob"} {
@@ -43,14 +43,20 @@ func TestBLSSignedVoteCannotBeReplayedAcrossDomains(t *testing.T) {
 		Member{ID: "carol", Power: 1},
 	)
 	vote := Vote{Voter: "alice", Block: "b7", View: 7}
-	signed, err := SignVote(VoteDomain{ChainID: 1, ShardID: 0, Epoch: 42}, vote, secrets["alice"])
+	signed, err := SignVote(VoteDomain{ChainID: 1, ShardID: 0, Epoch: 42, Genesis: "genesis"}, vote, secrets["alice"])
 	require.NoError(t, err)
 
 	otherEpoch := NewBLSVoteSet(
 		committee, "b7", 7,
-		VoteDomain{ChainID: 1, ShardID: 0, Epoch: 43},
+		VoteDomain{ChainID: 1, ShardID: 0, Epoch: 43, Genesis: "genesis"},
 	)
 	require.ErrorIs(t, otherEpoch.Add(signed), ErrInvalidVoteSignature)
+
+	otherGenesis := NewBLSVoteSet(
+		committee, "b7", 7,
+		VoteDomain{ChainID: 1, ShardID: 0, Epoch: 42, Genesis: "foreign-genesis"},
+	)
+	require.ErrorIs(t, otherGenesis.Add(signed), ErrInvalidVoteSignature)
 }
 
 func TestBLSQCVerificationRejectsTampering(t *testing.T) {
@@ -59,7 +65,7 @@ func TestBLSQCVerificationRejectsTampering(t *testing.T) {
 		Member{ID: "bob", Power: 1},
 		Member{ID: "carol", Power: 1},
 	)
-	domain := VoteDomain{ChainID: 1, ShardID: 0, Epoch: 42}
+	domain := VoteDomain{ChainID: 1, ShardID: 0, Epoch: 42, Genesis: "genesis"}
 	set := NewBLSVoteSet(committee, "b7", 7, domain)
 	for _, voter := range []MemberID{"alice", "bob", "carol"} {
 		signed, err := SignVote(domain, Vote{Voter: voter, Block: "b7", View: 7}, secrets[voter])
@@ -90,7 +96,7 @@ func TestBLSVoteSetUsesWeightedQuorum(t *testing.T) {
 		Member{ID: "carol", Power: 1},
 		Member{ID: "dave", Power: 1},
 	)
-	domain := VoteDomain{ChainID: 1, ShardID: 0, Epoch: 42}
+	domain := VoteDomain{ChainID: 1, ShardID: 0, Epoch: 42, Genesis: "genesis"}
 	set := NewBLSVoteSet(committee, "b7", 7, domain)
 
 	for _, voter := range []MemberID{"alice", "bob"} {

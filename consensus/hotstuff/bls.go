@@ -12,7 +12,7 @@ import (
 	bls_core "github.com/harmony-one/harmony/crypto/bls/core"
 )
 
-const hotStuffVoteDomain = "harmony/hotstuff/vote/v1"
+const hotStuffVoteDomain = "harmony/hotstuff/vote/v2"
 
 var (
 	ErrDuplicateBLSPublicKey = errors.New("hotstuff committee contains a duplicate BLS public key")
@@ -26,11 +26,12 @@ var (
 )
 
 // VoteDomain prevents a HotStuff vote from being replayed across chains,
-// shards, epochs, or other consensus message types.
+// shards, epochs, genesis roots, or other consensus message types.
 type VoteDomain struct {
 	ChainID uint32
 	ShardID uint32
 	Epoch   uint64
+	Genesis BlockID
 }
 
 // BLSMember must contain a key already admitted by Harmony's validator-key
@@ -251,7 +252,8 @@ func deserializeSignature(serialized []byte, invalid error) (*bls_core.Sign, err
 }
 
 func voteDigest(domain VoteDomain, vote Vote) ([sha256.Size]byte, error) {
-	if uint64(len(vote.Block)) > uint64(math.MaxUint32) {
+	if uint64(len(domain.Genesis)) > uint64(math.MaxUint32) ||
+		uint64(len(vote.Block)) > uint64(math.MaxUint32) {
 		return [sha256.Size]byte{}, ErrBlockIDTooLong
 	}
 	hasher := sha256.New()
@@ -263,6 +265,9 @@ func voteDigest(domain VoteDomain, vote Vote) ([sha256.Size]byte, error) {
 	_, _ = hasher.Write(fixed[:4])
 	binary.BigEndian.PutUint64(fixed[:], domain.Epoch)
 	_, _ = hasher.Write(fixed[:])
+	binary.BigEndian.PutUint32(fixed[:4], uint32(len(domain.Genesis)))
+	_, _ = hasher.Write(fixed[:4])
+	_, _ = hasher.Write([]byte(domain.Genesis))
 	binary.BigEndian.PutUint64(fixed[:], uint64(vote.View))
 	_, _ = hasher.Write(fixed[:])
 	binary.BigEndian.PutUint32(fixed[:4], uint32(len(vote.Block)))

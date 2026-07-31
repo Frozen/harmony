@@ -105,7 +105,7 @@ func TestVoteSetSerializesConcurrentDuplicateVoter(t *testing.T) {
 }
 
 func TestDirectThreeChainCommitsGreatGrandparent(t *testing.T) {
-	core := NewCore(Block{ID: "genesis", View: 0})
+	core := newCore(Block{ID: "genesis", View: 0})
 
 	chain := []Block{
 		{ID: "b1", Parent: "genesis", View: 1, Justify: QC{Block: "genesis", View: 0}},
@@ -115,24 +115,24 @@ func TestDirectThreeChainCommitsGreatGrandparent(t *testing.T) {
 	}
 
 	for _, block := range chain[:3] {
-		committed, err := core.Accept(block)
+		committed, err := core.accept(block)
 		require.NoError(t, err)
 		require.Empty(t, committed)
 	}
 
-	committed, err := core.Accept(chain[3])
+	committed, err := core.accept(chain[3])
 	require.NoError(t, err)
 	require.Equal(t, []BlockID{"b1"}, committed)
 	require.Equal(t, BlockID("b1"), core.Committed())
 }
 
 func TestCoreRejectsProposalWhoseQCDoesNotJustifyParent(t *testing.T) {
-	core := NewCore(Block{ID: "genesis", View: 0})
+	core := newCore(Block{ID: "genesis", View: 0})
 	require.NoError(t, acceptWithoutCommit(core,
 		Block{ID: "b1", Parent: "genesis", View: 1, Justify: QC{Block: "genesis", View: 0}},
 	))
 
-	_, err := core.Accept(Block{
+	_, err := core.accept(Block{
 		ID:      "bad",
 		Parent:  "b1",
 		View:    2,
@@ -142,6 +142,6 @@ func TestCoreRejectsProposalWhoseQCDoesNotJustifyParent(t *testing.T) {
 }
 
 func acceptWithoutCommit(core *Core, block Block) error {
-	_, err := core.Accept(block)
+	_, err := core.accept(block)
 	return err
 }
