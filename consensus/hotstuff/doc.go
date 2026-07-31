@@ -1,7 +1,8 @@
 // Package hotstuff contains an isolated chained HotStuff research spike.
 //
-// It is not wired into Harmony consensus, networking, persistence, block
-// verification, or BLS signatures. The package currently validates leader
-// rotation, broadcast vote aggregation, structural QCs, and the direct
+// It is not wired into Harmony consensus, networking, durable storage, block
+// execution, wire formats, or production activation. The package currently
+// validates leader rotation, safety rules, pacemaker timeouts, broadcast vote
+// aggregation with Harmony BLS signatures, structural QCs, and the direct
 // three-chain commit rule.
 package hotstuff
