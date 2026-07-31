@@ -1,6 +1,9 @@
 package hotstuff
 
-import "errors"
+import (
+	"errors"
+	"sync"
+)
 
 var (
 	ErrInvalidGenesis         = errors.New("hotstuff genesis block is invalid")
@@ -16,6 +19,7 @@ var (
 // accepts only direct parent/QC links so the three-chain commit rule is
 // explicit and easy to test before adding skipped views.
 type Core struct {
+	mu        sync.RWMutex
 	blocks    map[BlockID]Block
 	committed BlockID
 }
@@ -23,19 +27,63 @@ type Core struct {
 func NewCore(genesis Block) *Core {
 	core := &Core{blocks: make(map[BlockID]Block)}
 	if genesis.ID != "" && genesis.Parent == "" {
-		core.blocks[genesis.ID] = genesis
+		core.blocks[genesis.ID] = cloneBlock(genesis)
 		core.committed = genesis.ID
 	}
 	return core
 }
 
 func (c *Core) Committed() BlockID {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	return c.committed
+}
+
+func (c *Core) block(id BlockID) (Block, bool) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	block, exists := c.blocks[id]
+	return cloneBlock(block), exists
+}
+
+// Extends reports whether descendant is on the branch rooted at ancestor.
+func (c *Core) Extends(descendant, ancestor BlockID) bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	for descendant != "" {
+		if descendant == ancestor {
+			return true
+		}
+		block, exists := c.blocks[descendant]
+		if !exists {
+			return false
+		}
+		descendant = block.Parent
+	}
+	return false
+}
+
+// lockQC returns the QC that becomes locked when proposal completes a direct
+// two-chain. The caller is responsible for retaining the highest lock.
+func (c *Core) lockQC(proposal Block) (QC, bool) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	parent, exists := c.blocks[proposal.Parent]
+	if !exists || proposal.Justify.Block != parent.ID {
+		return QC{}, false
+	}
+	grandparent, exists := c.blocks[parent.Parent]
+	if !exists || parent.Justify.Block != grandparent.ID {
+		return QC{}, false
+	}
+	return cloneQC(parent.Justify), true
 }
 
 // Accept validates the proposal's structural QC and applies the direct
 // three-chain commit rule. Returned IDs are newly committed in chain order.
 func (c *Core) Accept(block Block) ([]BlockID, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	if len(c.blocks) == 0 {
 		return nil, ErrInvalidGenesis
 	}
@@ -64,7 +112,7 @@ func (c *Core) Accept(block Block) ([]BlockID, error) {
 		return nil, ErrInvalidView
 	}
 
-	c.blocks[block.ID] = block
+	c.blocks[block.ID] = cloneBlock(block)
 
 	one := parent
 	two, ok := c.blocks[one.Parent]
@@ -99,4 +147,9 @@ func (c *Core) commitThrough(target BlockID) []BlockID {
 	}
 	c.committed = target
 	return path
+}
+
+func cloneBlock(block Block) Block {
+	block.Justify = cloneQC(block.Justify)
+	return block
 }
