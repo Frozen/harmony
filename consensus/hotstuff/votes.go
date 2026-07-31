@@ -1,6 +1,9 @@
 package hotstuff
 
-import "errors"
+import (
+	"errors"
+	"sync"
+)
 
 var (
 	ErrUnknownVoter  = errors.New("hotstuff vote is from an unknown committee member")
@@ -12,6 +15,7 @@ var (
 // the same QC; a later transport adapter may instead collect only at the next
 // leader without changing this type.
 type VoteSet struct {
+	mu        sync.Mutex
 	committee *Committee
 	block     BlockID
 	view      View
@@ -29,6 +33,8 @@ func NewVoteSet(committee *Committee, block BlockID, view View) *VoteSet {
 }
 
 func (s *VoteSet) Add(vote Vote) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	member, exists := s.committee.byID[vote.Voter]
 	if !exists {
 		return ErrUnknownVoter
@@ -46,6 +52,8 @@ func (s *VoteSet) Add(vote Vote) error {
 }
 
 func (s *VoteSet) QC() (QC, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if s.power < s.committee.quorumPower() {
 		return QC{}, false
 	}

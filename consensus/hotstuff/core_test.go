@@ -1,6 +1,7 @@
 package hotstuff
 
 import (
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -66,6 +67,41 @@ func TestVoteSetRejectsDuplicateVoter(t *testing.T) {
 
 	_, ok := collector.QC()
 	require.False(t, ok, "a duplicate vote must not increase voting power")
+}
+
+func TestVoteSetSerializesConcurrentDuplicateVoter(t *testing.T) {
+	committee, err := NewCommittee([]Member{
+		{ID: "alice", Power: 1},
+		{ID: "bob", Power: 1},
+		{ID: "carol", Power: 1},
+	})
+	require.NoError(t, err)
+	collector := NewVoteSet(committee, "b1", 1)
+
+	const attempts = 32
+	start := make(chan struct{})
+	results := make(chan error, attempts)
+	var ready sync.WaitGroup
+	ready.Add(attempts)
+	for range attempts {
+		go func() {
+			ready.Done()
+			<-start
+			results <- collector.Add(Vote{Voter: "alice", Block: "b1", View: 1})
+		}()
+	}
+	ready.Wait()
+	close(start)
+
+	successes := 0
+	for range attempts {
+		if err := <-results; err == nil {
+			successes++
+		}
+	}
+	require.Equal(t, 1, successes)
+	_, formed := collector.QC()
+	require.False(t, formed)
 }
 
 func TestDirectThreeChainCommitsGreatGrandparent(t *testing.T) {
