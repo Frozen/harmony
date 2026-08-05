@@ -166,13 +166,16 @@ func (s *BLSTimeoutSet) Add(timeout SignedTimeout, evidence BLSQC) error {
 	return nil
 }
 
-func (s *BLSTimeoutSet) Certificate() (BLSTimeoutCertificate, bool) {
+func (s *BLSTimeoutSet) Certificate() (BLSTimeoutCertificate, bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	certificate, formed := s.timeouts.Certificate()
+	certificate, formed, err := s.timeouts.Certificate()
+	if err != nil {
+		return BLSTimeoutCertificate{}, false, err
+	}
 	if !formed {
-		return BLSTimeoutCertificate{}, false
+		return BLSTimeoutCertificate{}, false, nil
 	}
 	signatures := make([]*bls_core.Sign, 0, len(certificate.Signers))
 	reports := make([]BLSTimeoutReport, 0, len(certificate.Signers))
@@ -182,7 +185,7 @@ func (s *BLSTimeoutSet) Certificate() (BLSTimeoutCertificate, bool) {
 		reports = append(reports, cloneBLSTimeoutReport(s.reports[signer]))
 		member := s.authority.committee.byID[signer]
 		if err := mask.SetKey(member.PublicKey.Bytes, true); err != nil {
-			return BLSTimeoutCertificate{}, false
+			return BLSTimeoutCertificate{}, false, err
 		}
 	}
 	aggregate := hmybls.AggregateSig(signatures)
@@ -193,7 +196,7 @@ func (s *BLSTimeoutSet) Certificate() (BLSTimeoutCertificate, bool) {
 		Reports:   reports,
 		Signature: append([]byte(nil), aggregate.Serialize()...),
 		Bitmap:    mask.Mask(),
-	}, true
+	}, true, nil
 }
 
 func (a *QCAuthority) VerifyTC(certificate BLSTimeoutCertificate) (VerifiedTC, error) {

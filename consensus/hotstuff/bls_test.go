@@ -24,7 +24,8 @@ func TestBLSSignedBroadcastVotesFormVerifiableQC(t *testing.T) {
 		require.NoError(t, set.Add(signed))
 	}
 
-	qc, formed := set.QC()
+	qc, formed, err := set.QC()
+	require.NoError(t, err)
 	require.True(t, formed)
 	require.Equal(t, QC{
 		Block:   "b7",
@@ -72,7 +73,8 @@ func TestBLSQCVerificationRejectsTampering(t *testing.T) {
 		require.NoError(t, err)
 		require.NoError(t, set.Add(signed))
 	}
-	qc, formed := set.QC()
+	qc, formed, err := set.QC()
+	require.NoError(t, err)
 	require.True(t, formed)
 
 	tamperedBlock := cloneBLSQC(qc)
@@ -104,13 +106,15 @@ func TestBLSVoteSetUsesWeightedQuorum(t *testing.T) {
 		require.NoError(t, err)
 		require.NoError(t, set.Add(signed))
 	}
-	_, formed := set.QC()
+	_, formed, err := set.QC()
+	require.NoError(t, err)
 	require.False(t, formed, "four of six voting power is not strictly above two thirds")
 
 	signed, err := SignVote(domain, Vote{Voter: "carol", Block: "b7", View: 7}, secrets["carol"])
 	require.NoError(t, err)
 	require.NoError(t, set.Add(signed))
-	qc, formed := set.QC()
+	qc, formed, err := set.QC()
+	require.NoError(t, err)
 	require.True(t, formed)
 	require.NoError(t, committee.VerifyQC(domain, qc))
 }

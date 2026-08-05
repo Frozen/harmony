@@ -220,7 +220,8 @@ func formBLSQC(
 		require.NoError(t, err)
 		require.NoError(t, set.Add(signed))
 	}
-	qc, formed := set.QC()
+	qc, formed, err := set.QC()
+	require.NoError(t, err)
 	require.True(t, formed)
 	return qc
 }

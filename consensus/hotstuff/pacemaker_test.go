@@ -25,7 +25,8 @@ func TestBroadcastTimeoutsProduceEquivalentCertificatesAtEveryReplica(t *testing
 		for _, voter := range quorum {
 			require.NoError(t, set.Add(timeouts[voter]))
 		}
-		certificate, ok := set.Certificate()
+		certificate, ok, err := set.Certificate()
+		require.NoError(t, err)
 		require.True(t, ok)
 		require.NoError(t, committee.requireQuorum(certificate.Signers))
 		certificates = append(certificates, certificate)

@@ -3,14 +3,32 @@ package hotstuff
 import (
 	"errors"
 	"math"
+	"reflect"
 )
 
 var (
-	ErrEmptyCommittee      = errors.New("hotstuff committee is empty")
-	ErrInvalidMember       = errors.New("hotstuff committee member is invalid")
-	ErrDuplicateMember     = errors.New("hotstuff committee member is duplicated")
-	ErrVotingPowerOverflow = errors.New("hotstuff committee voting power overflows uint64")
+	ErrEmptyCommittee                  = errors.New("hotstuff committee is empty")
+	ErrInvalidMember                   = errors.New("hotstuff committee member is invalid")
+	ErrDuplicateMember                 = errors.New("hotstuff committee member is duplicated")
+	ErrVotingPowerOverflow             = errors.New("hotstuff committee voting power overflows uint64")
+	ErrNilCertificateQuorum            = errors.New("hotstuff certificate quorum policy is nil")
+	ErrCertificateQuorumRosterMismatch = errors.New("hotstuff certificate quorum policy does not match the full committee roster")
+	ErrNilLeaderSchedule               = errors.New("hotstuff leader schedule is nil")
 )
+
+// CertificateQuorum decides whether a validated set of unique committee
+// signers has certificate quorum. Implementations must be immutable,
+// deterministic, and safe for concurrent use for one authority epoch.
+type CertificateQuorum interface {
+	HasQuorum(signers []MemberID) (bool, error)
+}
+
+// LeaderSchedule selects one validator-level leader for a HotStuff view. It is
+// deliberately independent from certificate signer granularity and must be
+// immutable, deterministic, and safe for concurrent use by one authority.
+type LeaderSchedule interface {
+	Leader(view View) MemberID
+}
 
 // Member is a validator identity and its integer voting power.
 type Member struct {
@@ -18,12 +36,13 @@ type Member struct {
 	Power uint64
 }
 
-// Committee is an ordered, weighted validator set. Its order defines the
-// deterministic round-robin leader schedule.
+// Committee is an ordered, weighted validator set. Its order defines canonical
+// certificate signer order and the default round-robin leader schedule.
 type Committee struct {
-	members []Member
-	byID    map[MemberID]Member
-	total   uint64
+	members           []Member
+	byID              map[MemberID]Member
+	total             uint64
+	certificateQuorum CertificateQuorum
 }
 
 func NewCommittee(members []Member) (*Committee, error) {
@@ -67,4 +86,17 @@ func (c *Committee) Leader(view View) MemberID {
 func (c *Committee) quorumPower() uint64 {
 	// The smallest integer voting power strictly greater than two thirds.
 	return c.total - (c.total-1)/3
+}
+
+func isNilInterface(value interface{}) bool {
+	if value == nil {
+		return true
+	}
+	reflected := reflect.ValueOf(value)
+	switch reflected.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Ptr, reflect.Slice:
+		return reflected.IsNil()
+	default:
+		return false
+	}
 }

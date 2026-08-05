@@ -11,6 +11,7 @@ var (
 	ErrGenesisRootMismatch = errors.New("hotstuff authority is already bound to a different genesis root")
 	ErrMissingGenesisRoot  = errors.New("hotstuff authority has no configured genesis root")
 	ErrInvalidInitialView  = errors.New("hotstuff initial view must be after the genesis view")
+	ErrNilBLSCommittee     = errors.New("hotstuff BLS committee is nil")
 )
 
 // QCAuthority binds certificate verification and structural state machines to
@@ -18,6 +19,7 @@ var (
 // epoch and shard, then constructs its Core and Pacemaker through that object.
 type QCAuthority struct {
 	committee  *BLSCommittee
+	leaders    LeaderSchedule
 	domain     VoteDomain
 	mu         sync.Mutex
 	genesis    QC
@@ -26,6 +28,28 @@ type QCAuthority struct {
 
 func NewQCAuthority(committee *BLSCommittee, domain VoteDomain) *QCAuthority {
 	return &QCAuthority{committee: committee, domain: domain}
+}
+
+// NewQCAuthorityWithLeaderSchedule separates validator-level leader rotation
+// from the BLS-slot committee used for QC and TC verification.
+func NewQCAuthorityWithLeaderSchedule(
+	committee *BLSCommittee,
+	domain VoteDomain,
+	leaders LeaderSchedule,
+) (*QCAuthority, error) {
+	if committee == nil {
+		return nil, ErrNilBLSCommittee
+	}
+	if isNilInterface(leaders) {
+		return nil, ErrNilLeaderSchedule
+	}
+	return &QCAuthority{committee: committee, leaders: leaders, domain: domain}, nil
+}
+
+// NewVoteSet constructs a vote collector bound to this authority's committee
+// and domain.
+func (a *QCAuthority) NewVoteSet(block BlockID, view View) *BLSVoteSet {
+	return NewBLSVoteSet(a.committee, block, view, a.domain)
 }
 
 // VerifiedQC is an immutable capability issued by one QCAuthority after BLS
@@ -90,7 +114,11 @@ func (a *QCAuthority) NewPacemaker(initial View) (*Pacemaker, error) {
 	if initial <= a.genesis.View {
 		return nil, ErrInvalidInitialView
 	}
-	pacemaker := newPacemaker(a.committee.committee, initial)
+	leaders := a.leaders
+	if leaders == nil {
+		leaders = a.committee.committee
+	}
+	pacemaker := newPacemakerWithLeaderSchedule(a.committee.committee, leaders, initial)
 	pacemaker.authority = a
 	pacemaker.highQC = cloneQC(a.genesis)
 	return pacemaker, nil

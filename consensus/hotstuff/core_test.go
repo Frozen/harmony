@@ -43,7 +43,8 @@ func TestBroadcastVotesProduceSameQCAtEveryReplica(t *testing.T) {
 			require.NoError(t, collector.Add(vote))
 		}
 
-		got, ok := collector.QC()
+		got, ok, err := collector.QC()
+		require.NoError(t, err)
 		require.Truef(t, ok, "replica %d did not form a QC", replica)
 		if replica == 0 {
 			want = got
@@ -65,7 +66,8 @@ func TestVoteSetRejectsDuplicateVoter(t *testing.T) {
 	require.NoError(t, collector.Add(vote))
 	require.ErrorIs(t, collector.Add(vote), ErrDuplicateVote)
 
-	_, ok := collector.QC()
+	_, ok, err := collector.QC()
+	require.NoError(t, err)
 	require.False(t, ok, "a duplicate vote must not increase voting power")
 }
 
@@ -100,7 +102,8 @@ func TestVoteSetSerializesConcurrentDuplicateVoter(t *testing.T) {
 		}
 	}
 	require.Equal(t, 1, successes)
-	_, formed := collector.QC()
+	_, formed, err := collector.QC()
+	require.NoError(t, err)
 	require.False(t, formed)
 }
 

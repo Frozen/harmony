@@ -34,9 +34,8 @@ type HarmonyQuorumSlot struct {
 	VotingPower numeric.Dec
 }
 
-// HarmonyQuorum is an isolated staking-era reference adapter for Harmony's
-// canonical BLS-slot roster and decimal EPoS voting power. It does not yet
-// govern the HotStuff core's QC or timeout-certificate paths, and it must not
+// HarmonyQuorum is an immutable staking-era certificate policy for Harmony's
+// canonical BLS-slot roster and exact decimal EPoS voting power. It must not
 // reuse the validator-level leader schedule's uniform structural power.
 type HarmonyQuorum struct {
 	slots []HarmonyQuorumSlot
@@ -200,6 +199,16 @@ func (q *HarmonyQuorum) IsQuorum(bitmap []byte) (bool, error) {
 		return false, err
 	}
 	return power.GT(harmonyQuorumThreshold), nil
+}
+
+// HasQuorum implements hotstuff.CertificateQuorum using canonical BLS-slot
+// identities and exact Harmony decimal voting power.
+func (q *HarmonyQuorum) HasQuorum(signers []hotstuff.MemberID) (bool, error) {
+	bitmap, err := q.Bitmap(signers)
+	if err != nil {
+		return false, err
+	}
+	return q.IsQuorum(bitmap)
 }
 
 func (q *HarmonyQuorum) bitmapLength() int {

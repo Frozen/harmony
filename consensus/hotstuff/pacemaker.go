@@ -39,7 +39,6 @@ type TimeoutSet struct {
 	committee *Committee
 	view      View
 	voters    map[MemberID]struct{}
-	power     uint64
 	highQC    QC
 }
 
@@ -55,7 +54,7 @@ func (s *TimeoutSet) Add(timeout Timeout) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	member, exists := s.committee.byID[timeout.Voter]
+	_, exists := s.committee.byID[timeout.Voter]
 	if !exists {
 		return ErrUnknownVoter
 	}
@@ -73,7 +72,6 @@ func (s *TimeoutSet) Add(timeout Timeout) error {
 	}
 
 	s.voters[timeout.Voter] = struct{}{}
-	s.power += member.Power
 	canonicalHighQC := s.committee.canonicalQC(timeout.HighQC)
 	if higherQC(canonicalHighQC, s.highQC) {
 		s.highQC = canonicalHighQC
@@ -81,24 +79,27 @@ func (s *TimeoutSet) Add(timeout Timeout) error {
 	return nil
 }
 
-func (s *TimeoutSet) Certificate() (TimeoutCertificate, bool) {
+func (s *TimeoutSet) Certificate() (TimeoutCertificate, bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.power < s.committee.quorumPower() {
-		return TimeoutCertificate{}, false
-	}
-
 	signers := make([]MemberID, 0, len(s.voters))
 	for _, member := range s.committee.members {
 		if _, exists := s.voters[member.ID]; exists {
 			signers = append(signers, member.ID)
 		}
 	}
+	hasQuorum, err := s.committee.hasQuorum(signers)
+	if err != nil {
+		return TimeoutCertificate{}, false, err
+	}
+	if !hasQuorum {
+		return TimeoutCertificate{}, false, nil
+	}
 	return TimeoutCertificate{
 		View:    s.view,
 		HighQC:  cloneQC(s.highQC),
 		Signers: signers,
-	}, true
+	}, true, nil
 }
 
 // Pacemaker advances views after either a successful QC or a timeout
@@ -106,13 +107,22 @@ func (s *TimeoutSet) Certificate() (TimeoutCertificate, bool) {
 type Pacemaker struct {
 	mu        sync.Mutex
 	committee *Committee
+	leaders   LeaderSchedule
 	view      View
 	highQC    QC
 	authority *QCAuthority
 }
 
 func newPacemaker(committee *Committee, initial View) *Pacemaker {
-	return &Pacemaker{committee: committee, view: initial}
+	return newPacemakerWithLeaderSchedule(committee, committee, initial)
+}
+
+func newPacemakerWithLeaderSchedule(
+	committee *Committee,
+	leaders LeaderSchedule,
+	initial View,
+) *Pacemaker {
+	return &Pacemaker{committee: committee, leaders: leaders, view: initial}
 }
 
 func (p *Pacemaker) CurrentView() View {
@@ -124,7 +134,7 @@ func (p *Pacemaker) CurrentView() View {
 func (p *Pacemaker) Leader() MemberID {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	return p.committee.Leader(p.view)
+	return p.leaders.Leader(p.view)
 }
 
 func (p *Pacemaker) HighQC() QC {
@@ -191,23 +201,38 @@ func (p *Pacemaker) advanceAfter(certifiedView View) error {
 }
 
 func (c *Committee) requireQuorum(signers []MemberID) error {
+	hasQuorum, err := c.hasQuorum(signers)
+	if err != nil {
+		return err
+	}
+	if !hasQuorum {
+		return ErrInsufficientVotingPower
+	}
+	return nil
+}
+
+func (c *Committee) hasQuorum(signers []MemberID) (bool, error) {
 	seen := make(map[MemberID]struct{}, len(signers))
 	var power uint64
 	for _, signer := range signers {
 		if _, exists := seen[signer]; exists {
-			return ErrDuplicateSigner
+			return false, ErrDuplicateSigner
 		}
 		member, exists := c.byID[signer]
 		if !exists {
-			return ErrUnknownVoter
+			return false, ErrUnknownVoter
 		}
 		seen[signer] = struct{}{}
 		power += member.Power
 	}
-	if power < c.quorumPower() {
-		return ErrInsufficientVotingPower
+	if c.certificateQuorum != nil {
+		hasQuorum, err := c.certificateQuorum.HasQuorum(append([]MemberID(nil), signers...))
+		if err != nil {
+			return false, err
+		}
+		return hasQuorum, nil
 	}
-	return nil
+	return power >= c.quorumPower(), nil
 }
 
 func (c *Committee) requireQC(qc QC) error {

@@ -41,8 +41,9 @@ type BLSMember struct {
 	PublicKey hmybls.PublicKeyWrapper
 }
 
-// BLSCommittee binds the structural voting-power committee to Harmony BLS
-// public keys in the same canonical member order.
+// BLSCommittee binds a certificate committee to Harmony BLS public keys in the
+// same canonical member order. Its quorum may use either structural integer
+// power or an externally supplied exact policy.
 type BLSCommittee struct {
 	committee *Committee
 	members   []BLSMember
@@ -54,6 +55,27 @@ type BLSCommittee struct {
 // already passed staking/types.VerifyBLSKey (or an equivalent registry check).
 // It must not be called directly on public keys supplied by a network peer.
 func NewBLSCommitteeFromValidatedKeys(members []BLSMember) (*BLSCommittee, error) {
+	return newBLSCommitteeFromValidatedKeys(members, nil)
+}
+
+// NewBLSCommitteeFromValidatedKeysWithQuorum constructs a BLS committee whose
+// QC and TC paths use an external exact certificate-quorum policy. The policy
+// must describe the same member IDs as members and remain immutable for the
+// lifetime of every authority that uses the returned committee.
+func NewBLSCommitteeFromValidatedKeysWithQuorum(
+	members []BLSMember,
+	quorum CertificateQuorum,
+) (*BLSCommittee, error) {
+	if isNilInterface(quorum) {
+		return nil, ErrNilCertificateQuorum
+	}
+	return newBLSCommitteeFromValidatedKeys(members, quorum)
+}
+
+func newBLSCommitteeFromValidatedKeys(
+	members []BLSMember,
+	quorum CertificateQuorum,
+) (*BLSCommittee, error) {
 	structuralMembers := make([]Member, 0, len(members))
 	for _, member := range members {
 		structuralMembers = append(structuralMembers, member.Member)
@@ -62,6 +84,20 @@ func NewBLSCommitteeFromValidatedKeys(members []BLSMember) (*BLSCommittee, error
 	if err != nil {
 		return nil, err
 	}
+	if quorum != nil {
+		allSigners := make([]MemberID, len(structuralMembers))
+		for index, member := range structuralMembers {
+			allSigners[index] = member.ID
+		}
+		hasQuorum, err := quorum.HasQuorum(allSigners)
+		if err != nil {
+			return nil, err
+		}
+		if !hasQuorum {
+			return nil, ErrCertificateQuorumRosterMismatch
+		}
+	}
+	committee.certificateQuorum = quorum
 
 	result := &BLSCommittee{
 		committee: committee,
@@ -171,13 +207,16 @@ func (s *BLSVoteSet) Add(vote SignedVote) error {
 	return nil
 }
 
-func (s *BLSVoteSet) QC() (BLSQC, bool) {
+func (s *BLSVoteSet) QC() (BLSQC, bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	qc, formed := s.votes.QC()
+	qc, formed, err := s.votes.QC()
+	if err != nil {
+		return BLSQC{}, false, err
+	}
 	if !formed {
-		return BLSQC{}, false
+		return BLSQC{}, false, nil
 	}
 	signatures := make([]*bls_core.Sign, 0, len(qc.Signers))
 	mask := hmybls.NewMask(s.committee.publics)
@@ -185,7 +224,7 @@ func (s *BLSVoteSet) QC() (BLSQC, bool) {
 		signatures = append(signatures, s.signatures[signer])
 		member := s.committee.byID[signer]
 		if err := mask.SetKey(member.PublicKey.Bytes, true); err != nil {
-			return BLSQC{}, false
+			return BLSQC{}, false, err
 		}
 	}
 	aggregate := hmybls.AggregateSig(signatures)
@@ -193,7 +232,7 @@ func (s *BLSVoteSet) QC() (BLSQC, bool) {
 		QC:        qc,
 		Signature: append([]byte(nil), aggregate.Serialize()...),
 		Bitmap:    mask.Mask(),
-	}, true
+	}, true, nil
 }
 
 func (c *BLSCommittee) VerifyQC(domain VoteDomain, qc BLSQC) error {

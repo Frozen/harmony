@@ -20,7 +20,6 @@ type VoteSet struct {
 	block     BlockID
 	view      View
 	voters    map[MemberID]struct{}
-	power     uint64
 }
 
 func NewVoteSet(committee *Committee, block BlockID, view View) *VoteSet {
@@ -35,7 +34,7 @@ func NewVoteSet(committee *Committee, block BlockID, view View) *VoteSet {
 func (s *VoteSet) Add(vote Vote) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	member, exists := s.committee.byID[vote.Voter]
+	_, exists := s.committee.byID[vote.Voter]
 	if !exists {
 		return ErrUnknownVoter
 	}
@@ -47,22 +46,24 @@ func (s *VoteSet) Add(vote Vote) error {
 	}
 
 	s.voters[vote.Voter] = struct{}{}
-	s.power += member.Power
 	return nil
 }
 
-func (s *VoteSet) QC() (QC, bool) {
+func (s *VoteSet) QC() (QC, bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.power < s.committee.quorumPower() {
-		return QC{}, false
-	}
-
 	signers := make([]MemberID, 0, len(s.voters))
 	for _, member := range s.committee.members {
 		if _, voted := s.voters[member.ID]; voted {
 			signers = append(signers, member.ID)
 		}
 	}
-	return QC{Block: s.block, View: s.view, Signers: signers}, true
+	hasQuorum, err := s.committee.hasQuorum(signers)
+	if err != nil {
+		return QC{}, false, err
+	}
+	if !hasQuorum {
+		return QC{}, false, nil
+	}
+	return QC{Block: s.block, View: s.view, Signers: signers}, true, nil
 }

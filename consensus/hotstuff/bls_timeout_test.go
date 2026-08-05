@@ -31,12 +31,14 @@ func TestBLSSignedTimeoutsFormVerifiableTCAndAdvancePacemaker(t *testing.T) {
 		require.NoError(t, err)
 		require.NoError(t, set.Add(signed, BLSQC{QC: genesis.QC()}))
 		if index == 1 {
-			_, formed := set.Certificate()
+			_, formed, err := set.Certificate()
+			require.NoError(t, err)
 			require.False(t, formed)
 		}
 	}
 
-	certificate, formed := set.Certificate()
+	certificate, formed, err := set.Certificate()
+	require.NoError(t, err)
 	require.True(t, formed)
 	require.Equal(t, []MemberID{"alice", "bob", "carol"}, certificate.Signers)
 	require.Equal(t, []byte{0b00000111}, certificate.Bitmap)
@@ -195,7 +197,8 @@ func TestBLSTimeoutCertificateRejectsConflictingSameViewQCs(t *testing.T) {
 		require.NoError(t, err)
 		require.NoError(t, set.Add(signed, highQC))
 	}
-	certificate, formed := set.Certificate()
+	certificate, formed, err := set.Certificate()
+	require.NoError(t, err)
 	require.True(t, formed)
 	_, err = authority.VerifyTC(certificate)
 	require.ErrorIs(t, err, ErrConflictingHighQC)
@@ -229,7 +232,8 @@ func TestBLSTimeoutCertificateRejectsNonAdjacentSameViewConflict(t *testing.T) {
 		require.NoError(t, err)
 		require.NoError(t, set.Add(signed, highQC))
 	}
-	certificate, formed := set.Certificate()
+	certificate, formed, err := set.Certificate()
+	require.NoError(t, err)
 	require.True(t, formed)
 	_, err = authority.VerifyTC(certificate)
 	require.ErrorIs(t, err, ErrConflictingHighQC)
@@ -254,7 +258,8 @@ func formBLSTC(
 		require.NoError(t, err)
 		require.NoError(t, set.Add(signed, highQC))
 	}
-	certificate, formed := set.Certificate()
+	certificate, formed, err := set.Certificate()
+	require.NoError(t, err)
 	require.True(t, formed)
 	return certificate
 }
