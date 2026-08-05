@@ -1,0 +1,39 @@
+syntax = "proto3";
+package hotstuffwire;
+option go_package = "./;hotstuffwire";
+
+message Domain {
+  uint32 chain_id = 1;
+  uint32 shard_id = 2;
+  uint64 epoch = 3;
+  bytes genesis = 4;
+}
+
+message Vote {
+  bytes voter = 1;
+  bytes block = 2;
+  uint64 view = 3;
+  bytes signature = 4;
+}
+
+message QuorumCertificate {
+  bytes block = 1;
+  uint64 view = 2;
+  bytes signers = 3;
+  bytes signature = 4;
+  bytes bitmap = 5;
+}
+
+message Proposal {
+  bytes block = 1;
+  QuorumCertificate justify = 2;
+}
+
+message Envelope {
+  uint32 version = 1;
+  Domain domain = 2;
+  oneof message {
+    Vote vote = 3;
+    Proposal proposal = 4;
+  }
+}

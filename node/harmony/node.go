@@ -132,7 +132,10 @@ type Node struct {
 	// context control for pub-sub handling
 	psCtx    context.Context
 	psCancel func()
-	registry *registry.Registry
+
+	hotStuffShadowMu      sync.RWMutex
+	hotStuffShadowHandler *hotStuffShadowRegistration
+	registry              *registry.Registry
 }
 
 // Blockchain returns the blockchain for the node's current shard.
@@ -689,6 +692,7 @@ func (node *Node) StartPubSub() error {
 	type validated struct {
 		peerID         libp2p_peer.ID
 		consensusBound bool
+		handleH        func(context.Context) error
 		handleC        p2pHandlerConsensus
 		handleCArg     *msg_pb.Message
 		handleE        p2pHandlerElse
@@ -767,6 +771,22 @@ func (node *Node) StartPubSub() error {
 					}
 					return libp2p_pubsub.ValidationAccept
 
+				case proto.HotStuff:
+					target, decoded, err := node.validateHotStuffShadowTopicMessage(openBox, isConsensusBound)
+					if err != nil {
+						errChan <- withError{err, msg.GetFrom()}
+						return libp2p_pubsub.ValidationReject
+					}
+					nodeP2PMessageCounterVec.With(prometheus.Labels{"type": "hotstuff_total"}).Inc()
+					msg.ValidatorData = validated{
+						peerID:         peer,
+						consensusBound: true,
+						handleH: func(ctx context.Context) error {
+							return target.Handle(ctx, decoded)
+						},
+					}
+					return libp2p_pubsub.ValidationAccept
+
 				case proto.Node:
 					// node message is almost empty
 					if len(openBox) <= p2pNodeMsgPrefixSize {
@@ -835,7 +855,11 @@ func (node *Node) StartPubSub() error {
 						if semConsensus.TryAcquire(1) {
 							defer semConsensus.Release(1)
 
-							if isThisNodeAnExplorerNode {
+							if msg.handleH != nil {
+								if err := msg.handleH(ctx); err != nil {
+									errChan <- withError{err, msg.peerID}
+								}
+							} else if isThisNodeAnExplorerNode {
 								if err := node.explorerMessageHandler(
 									ctx, msg.handleCArg,
 								); err != nil {

@@ -31,6 +31,7 @@ const (
 	Node
 	Client // deprecated
 	DRand  // not used
+	HotStuff
 )
 
 const (
@@ -77,6 +78,15 @@ func GetConsensusMessagePayload(message []byte) ([]byte, error) {
 // ConstructConsensusMessage creates a message with the payload and returns as byte array.
 func ConstructConsensusMessage(payload []byte) []byte {
 	byteBuffer := bytes.NewBuffer([]byte{byte(Consensus)})
+	byteBuffer.Write(payload)
+	return byteBuffer.Bytes()
+}
+
+// ConstructHotStuffMessage creates a message in the dedicated HotStuff wire
+// category. Its payload is a versioned HotStuff envelope, not a legacy FBFT
+// ConsensusRequest.
+func ConstructHotStuffMessage(payload []byte) []byte {
+	byteBuffer := bytes.NewBuffer([]byte{byte(HotStuff)})
 	byteBuffer.Write(payload)
 	return byteBuffer.Bytes()
 }
