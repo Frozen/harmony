@@ -44,8 +44,9 @@ type WireMessage struct {
 	Proposal *WireProposal
 }
 
-// WireProposal contains an owned Harmony block encoding and the untrusted BLS
-// QC evidence that must be verified by the domain authority before ingress.
+// WireProposal contains an owned Harmony block encoding and untrusted QC
+// evidence. Signed evidence must pass QCAuthority.Verify; an empty genesis
+// trust root must match the capability minted while configuring that authority.
 type WireProposal struct {
 	Block   []byte
 	Justify hotstuff.BLSQC
@@ -95,8 +96,8 @@ func EncodeVoteMessage(domain hotstuff.VoteDomain, vote hotstuff.SignedVote) ([]
 }
 
 // EncodeProposalMessage serializes one Harmony block and its parent QC
-// evidence. The receiver must decode the block and call QCAuthority.Verify
-// before mapping it into the HotStuff core.
+// evidence. Before core ingress, the receiver must decode the block and either
+// verify signed evidence or match the configured genesis trust-root capability.
 func EncodeProposalMessage(
 	domain hotstuff.VoteDomain,
 	block []byte,
@@ -108,7 +109,7 @@ func EncodeProposalMessage(
 	if len(block) == 0 || len(block) > MaxWireBlockSize {
 		return nil, ErrInvalidWireMessage
 	}
-	wireQC, err := encodeWireQC(justify)
+	wireQC, err := encodeWireQC(domain, justify)
 	if err != nil {
 		return nil, err
 	}
@@ -182,7 +183,7 @@ func DecodeWireMessage(message []byte) (WireMessage, error) {
 		return result, nil
 	}
 	if wireProposal := envelope.GetProposal(); wireProposal != nil {
-		proposal, err := decodeWireProposal(wireProposal)
+		proposal, err := decodeWireProposal(result.Domain, wireProposal)
 		if err != nil {
 			return WireMessage{}, err
 		}
@@ -208,9 +209,22 @@ func DecodeWireMessageForDomain(
 	return decoded, nil
 }
 
-func encodeWireQC(qc hotstuff.BLSQC) (*wirepb.QuorumCertificate, error) {
+func encodeWireQC(domain hotstuff.VoteDomain, qc hotstuff.BLSQC) (*wirepb.QuorumCertificate, error) {
 	if err := validateWireBlockID(string(qc.QC.Block)); err != nil {
 		return nil, err
+	}
+	if isGenesisTrustRootQC(
+		domain,
+		string(qc.QC.Block),
+		uint64(qc.QC.View),
+		len(qc.QC.Signers),
+		len(qc.Signature),
+		len(qc.Bitmap),
+	) {
+		return &wirepb.QuorumCertificate{
+			Block: []byte(qc.QC.Block),
+			View:  uint64(qc.QC.View),
+		}, nil
 	}
 	if len(qc.QC.Signers) == 0 || len(qc.QC.Signers) > maxWireSigners ||
 		len(qc.Signature) != hmybls.BLSSignatureSizeInBytes ||
@@ -253,7 +267,7 @@ func decodeWireVote(wireVote *wirepb.Vote) (*hotstuff.SignedVote, error) {
 	}, nil
 }
 
-func decodeWireProposal(wireProposal *wirepb.Proposal) (*WireProposal, error) {
+func decodeWireProposal(domain hotstuff.VoteDomain, wireProposal *wirepb.Proposal) (*WireProposal, error) {
 	if len(wireProposal.Block) == 0 || len(wireProposal.Block) > MaxWireBlockSize || wireProposal.Justify == nil {
 		return nil, ErrInvalidWireMessage
 	}
@@ -261,13 +275,23 @@ func decodeWireProposal(wireProposal *wirepb.Proposal) (*WireProposal, error) {
 	if err := validateWireBlockBytes(wireQC.Block); err != nil {
 		return nil, err
 	}
-	if len(wireQC.Signers) == 0 || len(wireQC.Signers)%wireMemberIDSize != 0 ||
+	if !isGenesisTrustRootQC(
+		domain,
+		string(wireQC.Block),
+		wireQC.View,
+		len(wireQC.Signers),
+		len(wireQC.Signature),
+		len(wireQC.Bitmap),
+	) && (len(wireQC.Signers) == 0 || len(wireQC.Signers)%wireMemberIDSize != 0 ||
 		len(wireQC.Signers) > maxWireSigners*wireMemberIDSize ||
 		len(wireQC.Signature) != hmybls.BLSSignatureSizeInBytes ||
-		len(wireQC.Bitmap) == 0 || len(wireQC.Bitmap) > maxWireBitmapSize {
+		len(wireQC.Bitmap) == 0 || len(wireQC.Bitmap) > maxWireBitmapSize) {
 		return nil, ErrInvalidWireMessage
 	}
-	signers := make([]hotstuff.MemberID, len(wireQC.Signers)/wireMemberIDSize)
+	var signers []hotstuff.MemberID
+	if len(wireQC.Signers) > 0 {
+		signers = make([]hotstuff.MemberID, len(wireQC.Signers)/wireMemberIDSize)
+	}
 	for index := range signers {
 		start := index * wireMemberIDSize
 		signer := wireQC.Signers[start : start+wireMemberIDSize]
@@ -288,6 +312,21 @@ func decodeWireProposal(wireProposal *wirepb.Proposal) (*WireProposal, error) {
 			Bitmap:    append([]byte(nil), wireQC.Bitmap...),
 		},
 	}, nil
+}
+
+func isGenesisTrustRootQC(
+	domain hotstuff.VoteDomain,
+	block string,
+	view uint64,
+	signerEvidenceSize int,
+	signatureSize int,
+	bitmapSize int,
+) bool {
+	return hotstuff.BlockID(block) == domain.Genesis &&
+		view == 0 &&
+		signerEvidenceSize == 0 &&
+		signatureSize == 0 &&
+		bitmapSize == 0
 }
 
 func validateWireBlockID(id string) error {

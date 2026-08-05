@@ -85,6 +85,83 @@ func TestHotStuffWireProposalRoundTripOwnsBlockAndQC(t *testing.T) {
 	require.Equal(t, []byte{0x03}, decoded.Proposal.Justify.Bitmap)
 }
 
+func TestHotStuffWireProposalAcceptsOnlyCanonicalGenesisTrustRoot(t *testing.T) {
+	domain := hotstuff.VoteDomain{
+		ChainID: 1666700000,
+		ShardID: 2,
+		Epoch:   42,
+		Genesis: testWireBlockID(0x01),
+	}
+	block := []byte{0xf8, 0x01, 0x02, 0x03}
+	genesis := hotstuff.BLSQC{
+		QC: hotstuff.QC{Block: domain.Genesis},
+	}
+
+	encoded, err := EncodeProposalMessage(domain, block, genesis)
+	require.NoError(t, err)
+	decoded, err := DecodeWireMessageForDomain(encoded, domain)
+	require.NoError(t, err)
+	require.NotNil(t, decoded.Proposal)
+	require.Equal(t, genesis, decoded.Proposal.Justify)
+	foreignDomain := domain
+	foreignDomain.Epoch++
+	_, err = DecodeWireMessageForDomain(encoded, foreignDomain)
+	require.ErrorIs(t, err, ErrWireDomainMismatch)
+
+	invalidEncode := map[string]hotstuff.BLSQC{
+		"wrong block": {
+			QC: hotstuff.QC{Block: testWireBlockID(0x02)},
+		},
+		"nonzero view": {
+			QC: hotstuff.QC{Block: domain.Genesis, View: 1},
+		},
+		"partial signers": {
+			QC: hotstuff.QC{Block: domain.Genesis, Signers: []hotstuff.MemberID{testWireMemberID(0x03)}},
+		},
+		"partial signature": {
+			QC:        hotstuff.QC{Block: domain.Genesis},
+			Signature: bytes.Repeat([]byte{0x44}, 96),
+		},
+		"partial bitmap": {
+			QC:     hotstuff.QC{Block: domain.Genesis},
+			Bitmap: []byte{0x01},
+		},
+	}
+	for name, justify := range invalidEncode {
+		t.Run("encode "+name, func(t *testing.T) {
+			_, err := EncodeProposalMessage(domain, block, justify)
+			require.ErrorIs(t, err, ErrInvalidWireMessage)
+		})
+	}
+
+	invalidDecode := map[string]func(*wirepb.QuorumCertificate){
+		"wrong block": func(qc *wirepb.QuorumCertificate) {
+			qc.Block = []byte(testWireBlockID(0x02))
+		},
+		"nonzero view": func(qc *wirepb.QuorumCertificate) {
+			qc.View = 1
+		},
+		"partial signers": func(qc *wirepb.QuorumCertificate) {
+			qc.Signers = []byte(testWireMemberID(0x03))
+		},
+		"partial signature": func(qc *wirepb.QuorumCertificate) {
+			qc.Signature = bytes.Repeat([]byte{0x44}, 96)
+		},
+		"partial bitmap": func(qc *wirepb.QuorumCertificate) {
+			qc.Bitmap = []byte{0x01}
+		},
+	}
+	for name, mutateQC := range invalidDecode {
+		t.Run("decode "+name, func(t *testing.T) {
+			malformed := mutateWireEnvelope(t, encoded, func(envelope *wirepb.Envelope) {
+				mutateQC(envelope.GetProposal().Justify)
+			})
+			_, err := DecodeWireMessageForDomain(malformed, domain)
+			require.ErrorIs(t, err, ErrInvalidWireMessage)
+		})
+	}
+}
+
 func TestHotStuffWireDecodeRejectsEveryDomainMismatch(t *testing.T) {
 	domain := hotstuff.VoteDomain{
 		ChainID: 1666700000,
