@@ -1,9 +1,12 @@
 package consensus
 
 import (
+	"math/big"
 	"testing"
+	"time"
 
 	"github.com/harmony-one/harmony/crypto/bls"
+	"github.com/harmony-one/harmony/internal/params"
 	"github.com/harmony-one/harmony/internal/registry"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
@@ -89,4 +92,63 @@ func TestErrors(t *testing.T) {
 		e2 := errors.WithMessage(e1, "e2")
 		require.True(t, errors.Is(e2, e1))
 	})
+}
+
+func TestBlockPeriodForConsensusUpdate(t *testing.T) {
+	config := *params.TestnetChainConfig
+	config.TwoSecondsEpoch = big.NewInt(10)
+	config.IsOneSecondEpoch = big.NewInt(20)
+
+	tests := []struct {
+		name               string
+		currentEpoch       int64
+		nextEpoch          int64
+		isLastBlockInEpoch bool
+		want               time.Duration
+	}{
+		{
+			name:         "before two second activation",
+			currentEpoch: 9,
+			nextEpoch:    10,
+			want:         5 * time.Second,
+		},
+		{
+			name:               "two second activation boundary",
+			currentEpoch:       9,
+			nextEpoch:          10,
+			isLastBlockInEpoch: true,
+			want:               2 * time.Second,
+		},
+		{
+			name:         "mid epoch before one second activation",
+			currentEpoch: 19,
+			nextEpoch:    20,
+			want:         2 * time.Second,
+		},
+		{
+			name:               "one second activation boundary",
+			currentEpoch:       19,
+			nextEpoch:          20,
+			isLastBlockInEpoch: true,
+			want:               time.Second,
+		},
+		{
+			name:         "after one second activation",
+			currentEpoch: 20,
+			nextEpoch:    21,
+			want:         time.Second,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got := blockPeriodForConsensusUpdate(
+				&config,
+				big.NewInt(test.currentEpoch),
+				big.NewInt(test.nextEpoch),
+				test.isLastBlockInEpoch,
+			)
+			require.Equal(t, test.want, got)
+		})
+	}
 }
