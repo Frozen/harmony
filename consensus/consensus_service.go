@@ -19,6 +19,7 @@ import (
 	"github.com/harmony-one/harmony/crypto/hash"
 	"github.com/harmony-one/harmony/internal/chain"
 	nodeconfig "github.com/harmony-one/harmony/internal/configs/node"
+	"github.com/harmony-one/harmony/internal/params"
 	"github.com/harmony-one/harmony/internal/utils"
 	"github.com/harmony-one/harmony/multibls"
 	"github.com/harmony-one/harmony/p2p"
@@ -338,6 +339,38 @@ func (consensus *Consensus) UpdateConsensusInformation(reason string) Mode {
 	return consensus.updateConsensusInformation(reason)
 }
 
+func blockPeriodForEpoch(config *params.ChainConfig, epoch *big.Int) time.Duration {
+	blockPeriod := 5 * time.Second
+	if config.IsTwoSeconds(epoch) {
+		blockPeriod = 2 * time.Second
+	}
+	if config.IsOneSecond(epoch) {
+		blockPeriod = time.Second
+	}
+	return blockPeriod
+}
+
+func blockPeriodForConsensusUpdate(
+	config *params.ChainConfig, currentEpoch, nextEpoch *big.Int, isLastBlockInEpoch bool,
+) time.Duration {
+	// Startup and resync must retain the current epoch's cadence. Once the last
+	// block is committed, the next proposal belongs to the next epoch.
+	epoch := currentEpoch
+	if isLastBlockInEpoch {
+		epoch = nextEpoch
+	}
+	return blockPeriodForEpoch(config, epoch)
+}
+
+func (consensus *Consensus) setNextBlockDue(
+	now time.Time, config *params.ChainConfig, currentEpoch, nextEpoch *big.Int, isLastBlockInEpoch bool,
+) {
+	consensus.BlockPeriod = blockPeriodForConsensusUpdate(
+		config, currentEpoch, nextEpoch, isLastBlockInEpoch,
+	)
+	consensus.NextBlockDue = now.Add(consensus.BlockPeriod)
+}
+
 func (consensus *Consensus) updateConsensusInformation(reason string) Mode {
 	curHeader := consensus.Blockchain().CurrentHeader()
 	curEpoch := curHeader.Epoch()
@@ -358,15 +391,9 @@ func (consensus *Consensus) updateConsensusInformation(reason string) Mode {
 		}
 	}
 
-	consensus.BlockPeriod = 5 * time.Second
-
-	// Enable 2s block time at the twoSecondsEpoch
-	if consensus.Blockchain().Config().IsTwoSeconds(nextEpoch) {
-		consensus.BlockPeriod = 2 * time.Second
-	}
-	if consensus.Blockchain().Config().IsOneSecond(nextEpoch) {
-		consensus.BlockPeriod = 1 * time.Second
-	}
+	consensus.BlockPeriod = blockPeriodForConsensusUpdate(
+		consensus.Blockchain().Config(), curEpoch, nextEpoch, curHeader.IsLastBlockInEpoch(),
+	)
 
 	isFirstTimeStaking := consensus.Blockchain().Config().IsStaking(nextEpoch) &&
 		curHeader.IsLastBlockInEpoch() && !consensus.Blockchain().Config().IsStaking(curEpoch)

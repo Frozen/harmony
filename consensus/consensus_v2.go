@@ -468,8 +468,13 @@ func (consensus *Consensus) BlockChannel(newBlock *types.Block) {
 		consensus.StartFinalityCount()
 		consensus.mutex.Lock()
 		defer consensus.mutex.Unlock()
-		// Update time due for next block
-		consensus.NextBlockDue = time.Now().Add(consensus.BlockPeriod)
+		// Set the cadence for the epoch of the consensus that starts now. This is
+		// especially important for the first block after an epoch-boundary fork.
+		currentEpoch := newBlock.Epoch()
+		nextEpoch := new(big.Int).Add(currentEpoch, common.Big1)
+		consensus.setNextBlockDue(
+			time.Now(), consensus.Blockchain().Config(), currentEpoch, nextEpoch, newBlock.IsLastBlockInEpoch(),
+		)
 
 		startTime = time.Now()
 		consensus.msgSender.Reset(newBlock.NumberU64())
@@ -881,7 +886,7 @@ func (consensus *Consensus) setupForNewConsensus(blk *types.Block, committedMsg 
 
 			if consensus.isLeader() && newLeader && !wasLeader {
 				// leader changed
-				blockPeriod := consensus.BlockPeriod
+				blockPeriod := blockPeriodForEpoch(consensus.Blockchain().Config(), epoch)
 				go func() {
 					<-time.After(blockPeriod)
 					consensus.ReadySignal(NewProposal(SyncProposal, blk.NumberU64()+1), "setupForNewConsensus", "I am the new leader")
