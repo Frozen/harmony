@@ -1,6 +1,7 @@
 package chain
 
 import (
+	"errors"
 	"fmt"
 	"math/big"
 	"testing"
@@ -28,6 +29,27 @@ import (
 	"github.com/harmony-one/harmony/core/types"
 	"github.com/harmony-one/harmony/internal/params"
 )
+
+func TestVerifyCrossLinkRejectsIncidentBlocks(t *testing.T) {
+	tests := []types.CrossLink{
+		{
+			ShardIDF:     0,
+			BlockNumberF: big.NewInt(92730035),
+			HashF:        common.HexToHash("0x5de06979a333f20afb8b245a8cf44472dc5bfc7383a57ddee48e1809bcee7c5d"),
+		},
+		{
+			ShardIDF:     1,
+			BlockNumberF: big.NewInt(94978279),
+			HashF:        common.HexToHash("0xc936581d391b74a620bf6636519834b14a9a2d4e9a5154867c8407f219d8a878"),
+		},
+	}
+
+	for _, crossLink := range tests {
+		if err := NewEngine().VerifyCrossLink(nil, crossLink); !errors.Is(err, engine.ErrRejectedBlock) {
+			t.Fatalf("VerifyCrossLink() error = %v, want %v", err, engine.ErrRejectedBlock)
+		}
+	}
+}
 
 var (
 	bigOne        = big.NewInt(1e18)

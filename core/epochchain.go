@@ -123,6 +123,9 @@ func (bc *EpochChain) InsertChain(blocks types.Blocks, _ bool) (int, error) {
 		<-bc.mu
 	}()
 	for i, block := range blocks {
+		if err := consensus_engine.ValidateBlockHash(block.ShardID(), block.NumberU64(), block.Hash()); err != nil {
+			return i, err
+		}
 		if !block.IsLastBlockInEpoch() {
 			return i, ErrNotLastBlockInEpoch
 		}
@@ -282,6 +285,9 @@ func (bc *EpochChain) writeShardStateBytes(db rawdb.DatabaseWriter,
 
 // WriteHeadBlock writes a new head block.
 func (bc *EpochChain) WriteHeadBlock(block *types.Block) error {
+	if err := consensus_engine.ValidateBlockHash(block.ShardID(), block.NumberU64(), block.Hash()); err != nil {
+		return err
+	}
 	batch := bc.db.NewBatch()
 	se, err := bc.writeHeadBlock(batch, block)
 	if err != nil {
