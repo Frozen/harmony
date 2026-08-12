@@ -152,3 +152,62 @@ func TestBlockPeriodForConsensusUpdate(t *testing.T) {
 		})
 	}
 }
+
+func TestSetNextBlockDueUsesPeriodForNextConsensusEpoch(t *testing.T) {
+	config := *params.TestnetChainConfig
+	config.TwoSecondsEpoch = big.NewInt(10)
+	config.IsOneSecondEpoch = big.NewInt(20)
+
+	tests := []struct {
+		name               string
+		currentEpoch       int64
+		nextEpoch          int64
+		isLastBlockInEpoch bool
+		want               time.Duration
+	}{
+		{
+			name:         "mid epoch before two second activation",
+			currentEpoch: 9,
+			nextEpoch:    10,
+			want:         5 * time.Second,
+		},
+		{
+			name:               "first consensus at two second activation",
+			currentEpoch:       9,
+			nextEpoch:          10,
+			isLastBlockInEpoch: true,
+			want:               2 * time.Second,
+		},
+		{
+			name:         "mid epoch before one second activation",
+			currentEpoch: 19,
+			nextEpoch:    20,
+			want:         2 * time.Second,
+		},
+		{
+			name:               "first consensus at one second activation",
+			currentEpoch:       19,
+			nextEpoch:          20,
+			isLastBlockInEpoch: true,
+			want:               time.Second,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			consensus := &Consensus{BlockPeriod: 99 * time.Second}
+			now := time.Unix(100, 0)
+
+			consensus.setNextBlockDue(
+				now,
+				&config,
+				big.NewInt(test.currentEpoch),
+				big.NewInt(test.nextEpoch),
+				test.isLastBlockInEpoch,
+			)
+
+			require.Equal(t, test.want, consensus.BlockPeriod)
+			require.Equal(t, now.Add(test.want), consensus.NextBlockDue)
+		})
+	}
+}

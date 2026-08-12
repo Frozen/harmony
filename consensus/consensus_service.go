@@ -339,6 +339,17 @@ func (consensus *Consensus) UpdateConsensusInformation(reason string) Mode {
 	return consensus.updateConsensusInformation(reason)
 }
 
+func blockPeriodForEpoch(config *params.ChainConfig, epoch *big.Int) time.Duration {
+	blockPeriod := 5 * time.Second
+	if config.IsTwoSeconds(epoch) {
+		blockPeriod = 2 * time.Second
+	}
+	if config.IsOneSecond(epoch) {
+		blockPeriod = time.Second
+	}
+	return blockPeriod
+}
+
 func blockPeriodForConsensusUpdate(
 	config *params.ChainConfig, currentEpoch, nextEpoch *big.Int, isLastBlockInEpoch bool,
 ) time.Duration {
@@ -348,15 +359,16 @@ func blockPeriodForConsensusUpdate(
 	if isLastBlockInEpoch {
 		epoch = nextEpoch
 	}
+	return blockPeriodForEpoch(config, epoch)
+}
 
-	blockPeriod := 5 * time.Second
-	if config.IsTwoSeconds(epoch) {
-		blockPeriod = 2 * time.Second
-	}
-	if config.IsOneSecond(epoch) {
-		blockPeriod = time.Second
-	}
-	return blockPeriod
+func (consensus *Consensus) setNextBlockDue(
+	now time.Time, config *params.ChainConfig, currentEpoch, nextEpoch *big.Int, isLastBlockInEpoch bool,
+) {
+	consensus.BlockPeriod = blockPeriodForConsensusUpdate(
+		config, currentEpoch, nextEpoch, isLastBlockInEpoch,
+	)
+	consensus.NextBlockDue = now.Add(consensus.BlockPeriod)
 }
 
 func (consensus *Consensus) updateConsensusInformation(reason string) Mode {
