@@ -432,7 +432,9 @@ func setupNodeAndRun(hc harmonyconfig.HarmonyConfig) {
 	// This one-off recovery release never permits a shard-0 head jump. Enforce
 	// isolation in the binary so a validator's pre-existing TOML cannot silently
 	// re-enable a sync path during coordinated activation.
-	applyEmergencyRecoveryNetworkIsolation(&hc, initialAccounts[0].ShardID)
+	if shardID, ok := emergencyRecoveryShardID(hc, initialAccounts); ok {
+		applyEmergencyRecoveryNetworkIsolation(&hc, shardID)
+	}
 
 	nodeConfig, err := createGlobalConfig(hc)
 	if err != nil {
@@ -754,6 +756,18 @@ func applyEmergencyRecoveryNetworkIsolation(hc *harmonyconfig.HarmonyConfig, sha
 	hc.DNSSync.Client = false
 	hc.DNSSync.Server = false
 	return true
+}
+
+func emergencyRecoveryShardID(
+	hc harmonyconfig.HarmonyConfig, accounts []*genesis.DeployAccount,
+) (uint32, bool) {
+	if len(accounts) != 0 {
+		return accounts[0].ShardID, true
+	}
+	if hc.General.ShardID < 0 {
+		return 0, false
+	}
+	return uint32(hc.General.ShardID), true
 }
 
 func nodeconfigSetShardSchedule(config harmonyconfig.HarmonyConfig) {

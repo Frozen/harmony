@@ -11,6 +11,7 @@ import (
 	corestate "github.com/harmony-one/harmony/core/state"
 	"github.com/harmony-one/harmony/core/types"
 	harmonyconfig "github.com/harmony-one/harmony/internal/configs/harmony"
+	"github.com/harmony-one/harmony/internal/genesis"
 	"github.com/harmony-one/harmony/internal/params"
 	staketest "github.com/harmony-one/harmony/staking/types/test"
 	"github.com/stretchr/testify/require"
@@ -125,4 +126,20 @@ func TestEmergencyRecoveryNetworkIsolationIsForcedForMainnetShardZero(t *testing
 	}
 	require.False(t, applyEmergencyRecoveryNetworkIsolation(&shardOne, 1))
 	require.True(t, shardOne.Sync.Enabled)
+}
+
+func TestEmergencyRecoveryShardIDHandlesEmptyInitialAccounts(t *testing.T) {
+	hc := harmonyconfig.HarmonyConfig{General: harmonyconfig.GeneralConfig{ShardID: 1}}
+	shardID, ok := emergencyRecoveryShardID(hc, nil)
+	require.True(t, ok)
+	require.Equal(t, uint32(1), shardID)
+
+	hc.General.ShardID = -1
+	_, ok = emergencyRecoveryShardID(hc, nil)
+	require.False(t, ok)
+
+	accounts := []*genesis.DeployAccount{{ShardID: 0}}
+	shardID, ok = emergencyRecoveryShardID(hc, accounts)
+	require.True(t, ok)
+	require.Equal(t, uint32(0), shardID)
 }
