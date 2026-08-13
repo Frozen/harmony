@@ -34,6 +34,12 @@ func (bc *BlockChainImpl) CommitOffChainData(
 	if err := validateBlockHashes(block); err != nil {
 		return NonStatTy, err
 	}
+	if err := ValidateEmergencyRecoveryBlockPolicy(bc.chainConfig, block); err != nil {
+		return NonStatTy, err
+	}
+	if err := validateEmergencyRecoveryDerivedStaking(bc.chainConfig, block, len(stakeMsgs)); err != nil {
+		return NonStatTy, err
+	}
 	// Write receipts of the block
 	if err := rawdb.WriteReceipts(batch, block.Hash(), block.NumberU64(), receipts); err != nil {
 		return NonStatTy, err

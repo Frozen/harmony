@@ -499,6 +499,9 @@ func (bc *BlockChainImpl) ValidateNewBlock(block *types.Block, beaconChain Block
 	if block == nil || block.Header() == nil {
 		return errors.New("nil header or block asked to verify")
 	}
+	if err := ValidateEmergencyRecoveryBlockPolicy(bc.chainConfig, block); err != nil {
+		return err
+	}
 
 	if block.ShardID() != bc.ShardID() {
 		utils.Logger().Error().
@@ -954,11 +957,17 @@ func (bc *BlockChainImpl) WriteHeadBlock(block *types.Block) error {
 	if err := validateBlockHashes(block); err != nil {
 		return err
 	}
+	if err := ValidateEmergencyRecoveryBlockPolicy(bc.chainConfig, block); err != nil {
+		return err
+	}
 	return bc.writeHeadBlock(block)
 }
 
 // writeHeadBlock writes a new head block
 func (bc *BlockChainImpl) writeHeadBlock(block *types.Block) error {
+	if err := ValidateEmergencyRecoveryBlockPolicy(bc.chainConfig, block); err != nil {
+		return err
+	}
 	// If the block is on a side chain or an unknown one, force other heads onto it too
 	updateHeads := bc.GetCanonicalHash(block.NumberU64()) != block.Hash()
 
@@ -1012,6 +1021,9 @@ func (bc *BlockChainImpl) writeHeadBlock(block *types.Block) error {
 // tikvFastForward writes a new head block in tikv mode, used for reader node or follower writer node
 func (bc *BlockChainImpl) tikvFastForward(block *types.Block, logs []*types.Log) error {
 	if err := validateBlockHashes(block); err != nil {
+		return err
+	}
+	if err := ValidateEmergencyRecoveryBlockPolicy(bc.chainConfig, block); err != nil {
 		return err
 	}
 	bc.currentBlock.Store(block)
@@ -1448,6 +1460,9 @@ func (bc *BlockChainImpl) InsertReceiptChain(blockChain types.Blocks, receiptCha
 		if err := validateBlockHashes(block); err != nil {
 			return i, err
 		}
+		if err := ValidateEmergencyRecoveryBlockPolicy(bc.chainConfig, block); err != nil {
+			return i, err
+		}
 		receipts := receiptChain[i]
 		// Short circuit insertion if shutting down or processing failed
 		if atomic.LoadInt32(&bc.procInterrupt) == 1 {
@@ -1535,6 +1550,9 @@ func (bc *BlockChainImpl) WriteBlockWithoutState(block *types.Block) (err error)
 	if err := validateBlockHashes(block); err != nil {
 		return err
 	}
+	if err := ValidateEmergencyRecoveryBlockPolicy(bc.chainConfig, block); err != nil {
+		return err
+	}
 	bc.chainmu.Lock()
 	defer bc.chainmu.Unlock()
 
@@ -1553,6 +1571,12 @@ func (bc *BlockChainImpl) WriteBlockWithState(
 	state *state.DB,
 ) (status WriteStatus, err error) {
 	if err := validateBlockHashes(block); err != nil {
+		return NonStatTy, err
+	}
+	if err := ValidateEmergencyRecoveryBlockPolicy(bc.chainConfig, block); err != nil {
+		return NonStatTy, err
+	}
+	if err := validateEmergencyRecoveryDerivedStaking(bc.chainConfig, block, len(stakeMsgs)); err != nil {
 		return NonStatTy, err
 	}
 	currentBlock := bc.CurrentBlock()
@@ -1707,6 +1731,9 @@ func (bc *BlockChainImpl) InsertChain(chain types.Blocks, verifyHeaders bool) (i
 		if err := validateBlockHashes(block); err != nil {
 			return i, err
 		}
+		if err := ValidateEmergencyRecoveryBlockPolicy(bc.chainConfig, block); err != nil {
+			return i, err
+		}
 	}
 
 	// if in tikv mode, writer node need preempt master or come be a follower
@@ -1718,6 +1745,16 @@ func (bc *BlockChainImpl) InsertChain(chain types.Blocks, verifyHeaders bool) (i
 		// check if blocks already exist
 		if bc.HasBlock(b.Hash(), b.NumberU64()) {
 			return 0, errors.Wrapf(ErrKnownBlock, "block %s %d already exists", b.Hash().Hex(), b.NumberU64())
+		}
+	}
+
+	// InsertChain is used by sync/import paths that can bypass the live
+	// consensus validator. Apply the incoming-receipt checks after known-block
+	// handling, because replaying an already-canonical block may legitimately
+	// find its receipt-spent markers already set.
+	for i, block := range chain {
+		if err := VerifyIncomingReceipts(bc, block); err != nil {
+			return i, err
 		}
 	}
 

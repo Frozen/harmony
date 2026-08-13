@@ -130,6 +130,56 @@ func TestNodeIteratorCoverage(t *testing.T) {
 	}
 }
 
+func TestNodeIteratorTraversesValidatorCodeAndChecksHash(t *testing.T) {
+	db := rawdb.NewMemoryDatabase()
+	sdb := NewDatabase(db)
+	statedb, err := New(common.Hash{}, sdb, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	address := common.HexToAddress("0x1234")
+	code := []byte("validator-wrapper")
+	codeHash := crypto.Keccak256Hash(code)
+	object := statedb.GetOrNewStateObject(address)
+	object.SetCode(codeHash, code, true)
+	statedb.updateStateObject(object)
+	root, err := statedb.Commit(false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := sdb.TrieDB().Commit(root, false); err != nil {
+		t.Fatal(err)
+	}
+
+	check, err := New(root, NewDatabase(db), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	iterator := NewNodeIterator(check)
+	found := false
+	for iterator.Next() {
+		found = found || iterator.Hash == codeHash
+	}
+	if iterator.Error != nil {
+		t.Fatalf("validator code traversal failed: %v", iterator.Error)
+	}
+	if !found {
+		t.Fatal("validator code hash was not traversed")
+	}
+
+	rawdb.WriteValidatorCode(db, codeHash, []byte("corrupt-validator-wrapper"))
+	check, err = New(root, NewDatabase(db), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	iterator = NewNodeIterator(check)
+	for iterator.Next() {
+	}
+	if iterator.Error == nil {
+		t.Fatal("corrupt validator code passed traversal")
+	}
+}
+
 // isTrieNode is a helper function which reports if the provided
 // database entry belongs to a trie node or not.
 func isTrieNode(scheme string, key, val []byte) (bool, common.Hash) {

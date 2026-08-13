@@ -57,6 +57,9 @@ func (v *BlockValidator) ValidateBody(block *types.Block) error {
 	if err := validateBlockHashes(block); err != nil {
 		return err
 	}
+	if err := ValidateEmergencyRecoveryBlockPolicy(v.bc.Config(), block); err != nil {
+		return err
+	}
 	// Check whether the block's known, and if not, that it's linkable
 	if v.bc.HasBlockAndState(block.Hash(), block.NumberU64()) {
 		return errors.WithMessage(ErrKnownBlock, "validate body: has block and state")
@@ -128,6 +131,9 @@ func (v *BlockValidator) ValidateState(block *types.Block, statedb *state.DB, re
 func (v *BlockValidator) ValidateHeader(block *types.Block, seal bool) error {
 	if block == nil {
 		return errors.New("block is nil")
+	}
+	if err := ValidateEmergencyRecoveryBlockPolicy(v.bc.Config(), block); err != nil {
+		return err
 	}
 	if h := block.Header(); h != nil {
 		return v.bc.Engine().VerifyHeader(v.bc, h, true)

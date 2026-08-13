@@ -51,7 +51,13 @@ func validateHarmonyConfig(config harmonyconfig.HarmonyConfig) error {
 		return fmt.Errorf("flag --run.offline must have p2p IP be %v", nodeconfig.DefaultLocalListenIP)
 	}
 
-	if !config.Sync.Client && !config.DNSSync.Client {
+	// Recovery maintenance must be able to open a stopped database without
+	// starting either downloader. The mainnet validator exception is paired
+	// with a fail-closed runtime checkpoint/sync guard in cmd/harmony.
+	recoveryValidator := config.Network.NetworkType == nodeconfig.Mainnet &&
+		config.General.NodeType == NodeTypeValidator
+	if !config.Sync.Client && !config.DNSSync.Client &&
+		!config.General.IsOffline && !recoveryValidator {
 		// There is no module up for sync
 		return errors.New("either --sync.client or --sync.legacy.client shall be enabled")
 	}

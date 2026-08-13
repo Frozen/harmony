@@ -18,6 +18,11 @@ import (
 
 // construct the view change message
 func (consensus *Consensus) constructViewChangeMessage(priKey *bls.PrivateKeyWrapper) []byte {
+	if err := consensus.assertEmergencyRecoveryViewID(consensus.getViewChangingID()); err != nil {
+		consensus.getLogger().Error().Err(err).
+			Msg("[constructViewChangeMessage] unsafe recovery ViewID")
+		return nil
+	}
 	message := &msg_pb.Message{
 		ServiceType: msg_pb.ServiceType_CONSENSUS,
 		Type:        msg_pb.MessageType_VIEWCHANGE,
@@ -101,6 +106,11 @@ func (consensus *Consensus) constructViewChangeMessage(priKey *bls.PrivateKeyWra
 
 // new leader construct newview message
 func (consensus *Consensus) constructNewViewMessage(viewID uint64, priKey *bls.PrivateKeyWrapper) []byte {
+	if err := consensus.assertEmergencyRecoveryViewID(viewID); err != nil {
+		consensus.getLogger().Error().Err(err).
+			Msg("[constructNewViewMessage] unsafe recovery ViewID")
+		return nil
+	}
 	message := &msg_pb.Message{
 		ServiceType: msg_pb.ServiceType_CONSENSUS,
 		Type:        msg_pb.MessageType_NEWVIEW,

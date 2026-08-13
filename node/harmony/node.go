@@ -1200,6 +1200,16 @@ func (node *Node) ServiceManager() *service.Manager {
 
 // ShutDown gracefully shut down the node server and dump the in-memory blockchain state into DB.
 func (node *Node) ShutDown() {
+	node.shutDown(0)
+}
+
+// ShutDownWithExitCode performs the same graceful close while preserving a
+// maintenance command's failure status.
+func (node *Node) ShutDownWithExitCode(exitCode int) {
+	node.shutDown(exitCode)
+}
+
+func (node *Node) shutDown(exitCode int) {
 	if err := node.StopRPC(); err != nil {
 		utils.Logger().Error().Err(err).Msg("failed to stop RPC")
 	}
@@ -1241,7 +1251,7 @@ func (node *Node) ShutDown() {
 	const msg = "Successfully shut down!\n"
 	utils.Logger().Print(msg)
 	fmt.Print(msg)
-	os.Exit(0)
+	os.Exit(exitCode)
 }
 
 // IsRunningBeaconChain returns whether the node is running on beacon chain.

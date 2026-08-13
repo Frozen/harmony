@@ -58,6 +58,9 @@ func (pm *State) populateMessageFieldsAndSender(
 func (consensus *Consensus) construct(
 	p msg_pb.MessageType, payloadForSign []byte, priKeys []*bls.PrivateKeyWrapper,
 ) (*NetworkMessage, error) {
+	if err := consensus.assertEmergencyRecoveryViewID(consensus.getCurBlockViewID()); err != nil {
+		return nil, err
+	}
 	if len(priKeys) == 0 {
 		return nil, errors.New("no elected bls keys provided")
 	}

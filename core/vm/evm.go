@@ -87,6 +87,9 @@ func ActivePrecompiles(rules params.Rules) []common.Address {
 }
 
 func (evm *EVM) precompile(addr common.Address) (WriteCapablePrecompiledContract, bool) {
+	if isEmergencyRecoveryStakingPrecompileFrozen(evm, addr) {
+		return emergencyRecoveryFrozenStaking, true
+	}
 	precompiles := PrecompiledContractsHomestead
 	var writeCapablePrecompiles map[common.Address]WriteCapablePrecompiledContract
 	if evm.ChainConfig().IsS3(evm.Context.EpochNumber) {
