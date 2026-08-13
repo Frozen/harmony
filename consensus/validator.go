@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum/go-ethereum/rlp"
 
 	msg_pb "github.com/harmony-one/harmony/api/proto/message"
+	consensusengine "github.com/harmony-one/harmony/consensus/engine"
 	"github.com/harmony-one/harmony/consensus/signature"
 	"github.com/harmony-one/harmony/core/types"
 	"github.com/harmony-one/harmony/crypto/bls"
@@ -86,6 +87,9 @@ func (consensus *Consensus) ValidateNewBlock(recvMsg *FBFTMessage) (*types.Block
 	return consensus.validateNewBlock(recvMsg)
 }
 func (consensus *Consensus) validateNewBlock(recvMsg *FBFTMessage) (*types.Block, error) {
+	if err := consensusengine.ValidateBlockHash(nil, consensus.ShardID, recvMsg.BlockNum, recvMsg.BlockHash); err != nil {
+		return nil, err
+	}
 	if consensus.fBFTLog.IsBlockVerified(recvMsg.BlockHash) {
 		var blockObj *types.Block
 
@@ -100,6 +104,12 @@ func (consensus *Consensus) validateNewBlock(recvMsg *FBFTMessage) (*types.Block
 				return nil, errors.New("Failed parsing new block")
 			}
 			blockObj = &blockObj2
+		}
+		if err := consensusengine.ValidateRecoveryCheckpoint(consensus.Blockchain(), blockObj.ShardID(), blockObj.NumberU64(), blockObj.Hash(), blockObj.Root()); err != nil {
+			return nil, err
+		}
+		if err := consensusengine.ValidateRecoveryAncestry(consensus.Blockchain(), blockObj.Header()); err != nil {
+			return nil, err
 		}
 		consensus.getLogger().Info().
 			Msg("[validateNewBlock] Block Already verified")
