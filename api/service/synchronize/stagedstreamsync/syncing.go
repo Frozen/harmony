@@ -111,7 +111,7 @@ func CreateStagedSync(ctx context.Context,
 	}
 
 	extractReceiptHashes := config.SyncMode == FastSync || config.SyncMode == SnapSync
-	stageHeadsCfg := NewStageHeadersCfg(bc, mainDB, logger)
+	stageHeadsCfg := NewStageHeadersCfg(bc, mainDB, config.MaxBlocksPerSyncCycle, logger)
 	stageShortRangeCfg := NewStageShortRangeCfg(bc, mainDB, logger)
 	stageSyncEpochCfg := NewStageEpochCfg(bc, mainDB, logger)
 	stageBodiesCfg := NewStageBodiesCfg(bc, mainDB, dbs, config.Concurrency, protocol, extractReceiptHashes, logger, config.LogProgress)

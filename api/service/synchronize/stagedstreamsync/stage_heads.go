@@ -13,9 +13,10 @@ type StageHeads struct {
 }
 
 type StageHeadsCfg struct {
-	bc     core.BlockChain
-	db     kv.RwDB
-	logger zerolog.Logger
+	bc                    core.BlockChain
+	db                    kv.RwDB
+	maxBlocksPerSyncCycle uint64
+	logger                zerolog.Logger
 }
 
 func NewStageHeads(cfg StageHeadsCfg) *StageHeads {
@@ -24,10 +25,11 @@ func NewStageHeads(cfg StageHeadsCfg) *StageHeads {
 	}
 }
 
-func NewStageHeadersCfg(bc core.BlockChain, db kv.RwDB, logger zerolog.Logger) StageHeadsCfg {
+func NewStageHeadersCfg(bc core.BlockChain, db kv.RwDB, maxBlocksPerSyncCycle uint64, logger zerolog.Logger) StageHeadsCfg {
 	return StageHeadsCfg{
-		bc: bc,
-		db: db,
+		bc:                    bc,
+		db:                    db,
+		maxBlocksPerSyncCycle: maxBlocksPerSyncCycle,
 		logger: logger.With().
 			Str("stage", "StageHeads").
 			Logger(),
@@ -56,7 +58,6 @@ func (heads *StageHeads) Exec(ctx context.Context, firstCycle bool, invalidBlock
 	}
 
 	maxHeight := s.state.status.GetTargetBN()
-	maxBlocksPerSyncCycle := uint64(1024) // TODO: should be in config -> s.state.MaxBlocksPerSyncCycle
 	currentHeight := s.state.CurrentBlockNumber()
 	s.state.currentCycle.SetTargetHeight(maxHeight)
 	targetHeight := uint64(0)
@@ -79,7 +80,7 @@ func (heads *StageHeads) Exec(ctx context.Context, firstCycle bool, invalidBlock
 			return nil
 		}
 		heads.configs.logger.Info().
-			Uint64("max blocks per sync cycle", maxBlocksPerSyncCycle).
+			Uint64("max blocks per sync cycle", heads.configs.maxBlocksPerSyncCycle).
 			Uint64("currentHeight", currentHeight).
 			Uint64("maxPeersHeight", maxHeight).
 			Uint64("targetHeight", targetHeight).
@@ -91,9 +92,7 @@ func (heads *StageHeads) Exec(ctx context.Context, firstCycle bool, invalidBlock
 		targetHeight = maxHeight
 	}
 
-	if maxBlocksPerSyncCycle > 0 && targetHeight-currentHeight > maxBlocksPerSyncCycle {
-		targetHeight = currentHeight + maxBlocksPerSyncCycle
-	}
+	targetHeight = limitCycleTargetHeight(currentHeight, targetHeight, heads.configs.maxBlocksPerSyncCycle)
 
 	// check pivot: if chain hasn't reached to pivot yet
 	if !s.state.status.IsFullSyncCycle() && s.state.status.HasPivotBlock() {
@@ -119,6 +118,13 @@ func (heads *StageHeads) Exec(ctx context.Context, firstCycle bool, invalidBlock
 	}
 
 	return nil
+}
+
+func limitCycleTargetHeight(currentHeight, targetHeight, maxBlocks uint64) uint64 {
+	if maxBlocks > 0 && targetHeight > currentHeight && targetHeight-currentHeight > maxBlocks {
+		return currentHeight + maxBlocks
+	}
+	return targetHeight
 }
 
 func (heads *StageHeads) Revert(ctx context.Context, firstCycle bool, u *RevertState, s *StageState, tx kv.RwTx) (err error) {
