@@ -111,6 +111,9 @@ type (
 		// use memory db
 		UseMemDB bool
 
+		// maximum number of blocks processed by one sync cycle; zero means unlimited
+		MaxBlocksPerSyncCycle uint64
+
 		// log the stage progress
 		LogProgress bool
 

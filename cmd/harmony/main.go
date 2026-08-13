@@ -883,20 +883,21 @@ func setupSyncService(node *node.Node, host p2p.Host, hc harmonyconfig.HarmonyCo
 	}
 
 	sConfig := syncService.Config{
-		ServerOnly:           !hc.Sync.Client,
-		SyncMode:             syncService.SyncMode(hc.Sync.SyncMode),
-		Network:              nodeconfig.NetworkType(hc.Network.NetworkType),
-		Concurrency:          hc.Sync.Concurrency,
-		MinStreams:           hc.Sync.MinPeers,
-		InitStreams:          hc.Sync.InitStreams,
-		MaxAdvertiseWaitTime: hc.Sync.MaxAdvertiseWaitTime,
-		SmSoftLowCap:         hc.Sync.DiscSoftLowCap,
-		SmHardLowCap:         hc.Sync.DiscHardLowCap,
-		SmHiCap:              hc.Sync.DiscHighCap,
-		SmDiscBatch:          hc.Sync.DiscBatch,
-		UseMemDB:             hc.Sync.StagedSyncCfg.UseMemDB,
-		LogProgress:          hc.Sync.StagedSyncCfg.LogProgress,
-		DebugMode:            true, // hc.Sync.StagedSyncCfg.DebugMode,
+		ServerOnly:            !hc.Sync.Client,
+		SyncMode:              syncService.SyncMode(hc.Sync.SyncMode),
+		Network:               nodeconfig.NetworkType(hc.Network.NetworkType),
+		Concurrency:           hc.Sync.Concurrency,
+		MinStreams:            hc.Sync.MinPeers,
+		InitStreams:           hc.Sync.InitStreams,
+		MaxAdvertiseWaitTime:  hc.Sync.MaxAdvertiseWaitTime,
+		SmSoftLowCap:          hc.Sync.DiscSoftLowCap,
+		SmHardLowCap:          hc.Sync.DiscHardLowCap,
+		SmHiCap:               hc.Sync.DiscHighCap,
+		SmDiscBatch:           hc.Sync.DiscBatch,
+		UseMemDB:              hc.Sync.StagedSyncCfg.UseMemDB,
+		MaxBlocksPerSyncCycle: hc.Sync.StagedSyncCfg.MaxBlocksPerSyncCycle,
+		LogProgress:           hc.Sync.StagedSyncCfg.LogProgress,
+		DebugMode:             true, // hc.Sync.StagedSyncCfg.DebugMode,
 	}
 
 	// If we are running side chain, we will need to do some extra works for beacon
