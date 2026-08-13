@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum/go-ethereum/rlp"
 
 	msg_pb "github.com/harmony-one/harmony/api/proto/message"
+	consensusengine "github.com/harmony-one/harmony/consensus/engine"
 	"github.com/harmony-one/harmony/consensus/signature"
 	"github.com/harmony-one/harmony/core/types"
 	"github.com/harmony-one/harmony/crypto/bls"
@@ -86,6 +87,9 @@ func (consensus *Consensus) ValidateNewBlock(recvMsg *FBFTMessage) (*types.Block
 	return consensus.validateNewBlock(recvMsg)
 }
 func (consensus *Consensus) validateNewBlock(recvMsg *FBFTMessage) (*types.Block, error) {
+	if err := consensusengine.ValidateBlockHash(recvMsg.BlockHash); err != nil {
+		return nil, err
+	}
 	if consensus.fBFTLog.IsBlockVerified(recvMsg.BlockHash) {
 		var blockObj *types.Block
 
