@@ -812,14 +812,14 @@ func (sss *StagedStreamSync) EnableStages(ids ...SyncStageID) {
 	}
 }
 
-// UpdateBlockAndStatus updates block and its status in db
-func (sss *StagedStreamSync) UpdateBlockAndStatus(block *types.Block, bc core.BlockChain, verifyAllSig bool) error {
+// UpdateBlockAndStatus updates block and reports whether it became the canonical full head.
+func (sss *StagedStreamSync) UpdateBlockAndStatus(block *types.Block, bc core.BlockChain, verifyAllSig bool) (bool, error) {
 	if block.NumberU64() != bc.CurrentBlock().NumberU64()+1 {
 		sss.logger.Debug().
 			Uint64("curBlockNum", bc.CurrentBlock().NumberU64()).
 			Uint64("receivedBlockNum", block.NumberU64()).
 			Msg("[STAGED_STREAM_SYNC] Inappropriate block number, ignore!")
-		return nil
+		return false, nil
 	}
 
 	haveCurrentSig := len(block.GetCurrentCommitSig()) != 0
@@ -831,12 +831,12 @@ func (sss *StagedStreamSync) UpdateBlockAndStatus(block *types.Block, bc core.Bl
 		if verifyCurrentSig {
 			sig, bitmap, err := chain.ParseCommitSigAndBitmap(block.GetCurrentCommitSig())
 			if err != nil {
-				return errors.Wrap(err, "parse commitSigAndBitmap")
+				return false, errors.Wrap(err, "parse commitSigAndBitmap")
 			}
 
 			startTime := time.Now()
 			if err := bc.Engine().VerifyHeaderSignature(bc, block.Header(), sig, bitmap); err != nil {
-				return errors.Wrapf(err, "verify header signature %v", block.Hash().String())
+				return false, errors.Wrapf(err, "verify header signature %v", block.Hash().String())
 			}
 			sss.logger.Debug().
 				Int64("elapsed time", time.Now().Sub(startTime).Milliseconds()).
@@ -844,7 +844,7 @@ func (sss *StagedStreamSync) UpdateBlockAndStatus(block *types.Block, bc core.Bl
 		}
 		err := bc.Engine().VerifyHeader(bc, block.Header(), verifySeal)
 		if err == engine.ErrUnknownAncestor {
-			return nil
+			return false, nil
 		} else if err != nil {
 			sss.logger.Error().
 				Err(err).
@@ -860,7 +860,7 @@ func (sss *StagedStreamSync) UpdateBlockAndStatus(block *types.Block, bc core.Bl
 			// 		}
 			// 	}
 			// }
-			return err
+			return false, err
 		}
 	}
 
@@ -873,15 +873,19 @@ func (sss *StagedStreamSync) UpdateBlockAndStatus(block *types.Block, bc core.Bl
 			Str("blockHex", block.Hash().Hex()).
 			Uint32("ShardID", block.ShardID()).
 			Msg("[STAGED_STREAM_SYNC] UpdateBlockAndStatus: Block exists")
-		return nil
+		return false, nil
 	case err != nil:
 		sss.logger.Error().
 			Err(err).
 			Uint64("block number", block.NumberU64()).
 			Uint32("shard", block.ShardID()).
 			Msgf("[STAGED_STREAM_SYNC] UpdateBlockAndStatus: Error adding new block to blockchain")
-		return err
+		return false, err
 	default:
+	}
+	head := bc.CurrentBlock()
+	if head == nil || head.NumberU64() != block.NumberU64() || head.Hash() != block.Hash() {
+		return false, nil
 	}
 	sss.logger.Info().
 		Uint64("blockHeight", block.NumberU64()).
@@ -892,5 +896,5 @@ func (sss *StagedStreamSync) UpdateBlockAndStatus(block *types.Block, bc core.Bl
 	for i, tx := range block.StakingTransactions() {
 		sss.logger.Info().Msgf("StakingTxn %d: %s, %v", i, tx.StakingType().String(), tx.StakingMessage())
 	}
-	return nil
+	return true, nil
 }

@@ -54,7 +54,7 @@ func NewBlockValidator(blockchain BlockChain) *BlockValidator {
 // ValidateBody verifies the block header's transaction root.
 // The headers are assumed to be already validated at this point.
 func (v *BlockValidator) ValidateBody(block *types.Block) error {
-	if err := consensus_engine.ValidateBlockHash(block.ShardID(), block.NumberU64(), block.Hash()); err != nil {
+	if err := consensus_engine.ValidateBlockHash(v.bc, block.ShardID(), block.NumberU64(), block.Hash()); err != nil {
 		return err
 	}
 	// Check whether the block's known, and if not, that it's linkable

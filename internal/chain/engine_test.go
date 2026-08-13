@@ -34,8 +34,8 @@ func TestVerifyCrossLinkRejectsIncidentBlocks(t *testing.T) {
 	tests := []types.CrossLink{
 		{
 			ShardIDF:     0,
-			BlockNumberF: big.NewInt(92730035),
-			HashF:        common.HexToHash("0x5de06979a333f20afb8b245a8cf44472dc5bfc7383a57ddee48e1809bcee7c5d"),
+			BlockNumberF: big.NewInt(92730036),
+			HashF:        common.HexToHash("0x890473cdb9aa8dc5c0bbd54cf20b6d8d84bda60d3dcb2273443d34432d8539e8"),
 		},
 		{
 			ShardIDF:     1,

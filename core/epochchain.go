@@ -123,7 +123,13 @@ func (bc *EpochChain) InsertChain(blocks types.Blocks, _ bool) (int, error) {
 		<-bc.mu
 	}()
 	for i, block := range blocks {
-		if err := consensus_engine.ValidateBlockHash(block.ShardID(), block.NumberU64(), block.Hash()); err != nil {
+		if err := consensus_engine.ValidateBlockHash(bc, block.ShardID(), block.NumberU64(), block.Hash()); err != nil {
+			return i, err
+		}
+		if err := consensus_engine.ValidateRecoveryCheckpoint(bc, block.ShardID(), block.NumberU64(), block.Hash(), block.Root()); err != nil {
+			return i, err
+		}
+		if err := consensus_engine.ValidateRecoveryAncestry(bc, block.Header()); err != nil {
 			return i, err
 		}
 		if !block.IsLastBlockInEpoch() {
@@ -285,7 +291,13 @@ func (bc *EpochChain) writeShardStateBytes(db rawdb.DatabaseWriter,
 
 // WriteHeadBlock writes a new head block.
 func (bc *EpochChain) WriteHeadBlock(block *types.Block) error {
-	if err := consensus_engine.ValidateBlockHash(block.ShardID(), block.NumberU64(), block.Hash()); err != nil {
+	if err := consensus_engine.ValidateBlockHash(bc, block.ShardID(), block.NumberU64(), block.Hash()); err != nil {
+		return err
+	}
+	if err := consensus_engine.ValidateRecoveryCheckpoint(bc, block.ShardID(), block.NumberU64(), block.Hash(), block.Root()); err != nil {
+		return err
+	}
+	if err := consensus_engine.ValidateRecoveryAncestry(bc, block.Header()); err != nil {
 		return err
 	}
 	batch := bc.db.NewBatch()

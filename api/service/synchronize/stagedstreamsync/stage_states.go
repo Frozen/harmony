@@ -7,6 +7,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/harmony-one/harmony/core"
+	"github.com/harmony-one/harmony/core/types"
 	"github.com/ledgerwatch/erigon-lib/kv"
 	"github.com/rs/zerolog"
 )
@@ -173,11 +174,10 @@ func (stg *StageStates) Exec(ctx context.Context, firstCycle bool, invalidBlockR
 			return ErrInvalidBlockNumber
 		}
 
-		if stg.configs.bc.HasBlock(block.Hash(), block.NumberU64()) {
+		if isKnownCanonicalBlock(stg.configs.bc, block) {
 			// At this point, there should be some db discrepancies
 			if blk := stg.configs.bc.GetBlock(block.Hash(), block.NumberU64()); blk != nil {
 				if blk.NumberU64() == block.NumberU64() && blk.Hash() == block.Hash() {
-					stg.configs.bc.CurrentHeader().SetNumber(block.Number())
 					gbm.MarkBlockCompleted(i)
 					if invalidBlockRevert {
 						if s.state.invalidBlock.Number == i {
@@ -189,7 +189,8 @@ func (stg *StageStates) Exec(ctx context.Context, firstCycle bool, invalidBlockR
 			}
 		}
 
-		if err := s.state.UpdateBlockAndStatus(block, stg.configs.bc, false); err != nil {
+		inserted, err := s.state.UpdateBlockAndStatus(block, stg.configs.bc, false)
+		if err != nil {
 			stg.configs.logger.Warn().Err(err).Uint64("cycle target block", targetHeight).
 				Uint64("block number", block.NumberU64()).
 				Msg(WrapStagedSyncMsg("insert blocks failed in long range"))
@@ -204,6 +205,15 @@ func (stg *StageStates) Exec(ctx context.Context, firstCycle bool, invalidBlockR
 				gbm.CleanupDetails(i)
 			}
 
+			return err
+		}
+		if !inserted {
+			err := fmt.Errorf(
+				"block %d %s was not inserted as canonical head",
+				block.NumberU64(), block.Hash(),
+			)
+			stg.configs.logger.Warn().Err(err).
+				Msg(WrapStagedSyncMsg("insert blocks made no canonical progress"))
 			return err
 		}
 
@@ -265,6 +275,18 @@ func (stg *StageStates) Exec(ctx context.Context, firstCycle bool, invalidBlockR
 	}
 
 	return nil
+}
+
+func isKnownCanonicalBlock(bc core.BlockChain, block *types.Block) bool {
+	if block == nil || !bc.HasBlock(block.Hash(), block.NumberU64()) {
+		return false
+	}
+	head := bc.CurrentBlock()
+	if head == nil || block.NumberU64() > head.NumberU64() {
+		return false
+	}
+	canonical := bc.GetBlockByNumber(block.NumberU64())
+	return canonical != nil && canonical.Hash() == block.Hash()
 }
 
 func (stg *StageStates) saveProgress(ctx context.Context, s *StageState, tx kv.RwTx) (err error) {
