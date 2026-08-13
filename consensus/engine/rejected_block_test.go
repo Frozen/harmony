@@ -14,7 +14,12 @@ func TestValidateBlockHashRejectsAbandonedChainAnchors(t *testing.T) {
 		want error
 	}{
 		{
-			name: "reject shard 0 abandoned chain anchor",
+			name: "reject shard 0 first abandoned child at block 92730035",
+			hash: common.HexToHash("0x5de06979a333f20afb8b245a8cf44472dc5bfc7383a57ddee48e1809bcee7c5d"),
+			want: ErrRejectedBlock,
+		},
+		{
+			name: "reject shard 0 first confirmed malicious block at 92730036",
 			hash: common.HexToHash("0x890473cdb9aa8dc5c0bbd54cf20b6d8d84bda60d3dcb2273443d34432d8539e8"),
 			want: ErrRejectedBlock,
 		},

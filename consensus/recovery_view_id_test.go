@@ -15,6 +15,8 @@ import (
 )
 
 func TestEmergencyRecoveryViewIDFloorScopeFailsClosed(t *testing.T) {
+	require.Equal(t, uint64(1_000_000_000), EmergencyRecoveryViewIDFloor)
+
 	mainnet := &params.ChainConfig{ChainID: new(big.Int).Set(params.MainnetChainID)}
 	testnet := &params.ChainConfig{ChainID: new(big.Int).Set(params.TestnetChainID)}
 

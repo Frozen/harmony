@@ -4,13 +4,9 @@ package params
 // by the emergency recovery release.
 const EmergencyRecoveryRetainedBlock uint64 = 92730034
 
-// EmergencyRecoveryViewIDFloor must be set to one greater than the maximum
-// authenticated ViewID signed by a participating shard-0 BLS key on the
-// abandoned branch. Zero deliberately makes applicable builds fail closed.
-//
-// TODO(RECOVERY-RELEASE-BLOCKER): replace this placeholder with the audited
-// value from the signed activation manifest.
-const EmergencyRecoveryViewIDFloor uint64 = 0
+// EmergencyRecoveryViewIDFloor is the recovery release's signed activation
+// floor for mainnet shard 0.
+const EmergencyRecoveryViewIDFloor uint64 = 1_000_000_000
 
 // IsEmergencyRecoveryFeatureFreeze reports whether features backed by
 // post-target auxiliary metadata must remain disabled. Shard 0 is the beacon

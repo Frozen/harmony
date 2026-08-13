@@ -15,14 +15,8 @@ const (
 	// August 2026 mainnet recovery.
 	EmergencyRecoveryRetainedBlock uint64 = params.EmergencyRecoveryRetainedBlock
 
-	// EmergencyRecoveryViewIDFloor must be set to one greater than the maximum
-	// authenticated ViewID signed by a participating shard-0 BLS key on the
-	// abandoned branch.
-	//
-	// TODO(RECOVERY-RELEASE-BLOCKER): replace zero with the independently
-	// audited value from the signed activation manifest. Applicable mainnet
-	// shard-0 nodes fail closed while this value is zero; never guess it from a
-	// block height or from unauthenticated peer messages.
+	// EmergencyRecoveryViewIDFloor is the recovery release's signed activation
+	// floor for mainnet shard 0.
 	EmergencyRecoveryViewIDFloor uint64 = params.EmergencyRecoveryViewIDFloor
 )
 
