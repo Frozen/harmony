@@ -951,7 +951,7 @@ func (bc *BlockChainImpl) ExportN(w io.Writer, first uint64, last uint64) error 
 }
 
 func (bc *BlockChainImpl) WriteHeadBlock(block *types.Block) error {
-	if err := consensus_engine.ValidateBlockHash(block.Hash()); err != nil {
+	if err := validateBlockHashes(block); err != nil {
 		return err
 	}
 	return bc.writeHeadBlock(block)
@@ -1011,7 +1011,7 @@ func (bc *BlockChainImpl) writeHeadBlock(block *types.Block) error {
 
 // tikvFastForward writes a new head block in tikv mode, used for reader node or follower writer node
 func (bc *BlockChainImpl) tikvFastForward(block *types.Block, logs []*types.Log) error {
-	if err := consensus_engine.ValidateBlockHash(block.Hash()); err != nil {
+	if err := validateBlockHashes(block); err != nil {
 		return err
 	}
 	bc.currentBlock.Store(block)
@@ -1445,7 +1445,7 @@ func (bc *BlockChainImpl) InsertReceiptChain(blockChain types.Blocks, receiptCha
 		batch = bc.db.NewBatch()
 	)
 	for i, block := range blockChain {
-		if err := consensus_engine.ValidateBlockHash(block.Hash()); err != nil {
+		if err := validateBlockHashes(block); err != nil {
 			return i, err
 		}
 		receipts := receiptChain[i]
@@ -1532,7 +1532,7 @@ func (bc *BlockChainImpl) InsertReceiptChain(blockChain types.Blocks, receiptCha
 var lastWrite uint64
 
 func (bc *BlockChainImpl) WriteBlockWithoutState(block *types.Block) (err error) {
-	if err := consensus_engine.ValidateBlockHash(block.Hash()); err != nil {
+	if err := validateBlockHashes(block); err != nil {
 		return err
 	}
 	bc.chainmu.Lock()
@@ -1552,7 +1552,7 @@ func (bc *BlockChainImpl) WriteBlockWithState(
 	paid reward.Reader,
 	state *state.DB,
 ) (status WriteStatus, err error) {
-	if err := consensus_engine.ValidateBlockHash(block.Hash()); err != nil {
+	if err := validateBlockHashes(block); err != nil {
 		return NonStatTy, err
 	}
 	currentBlock := bc.CurrentBlock()
@@ -1704,7 +1704,7 @@ func (bc *BlockChainImpl) GetMaxGarbageCollectedBlockNumber() int64 {
 
 func (bc *BlockChainImpl) InsertChain(chain types.Blocks, verifyHeaders bool) (int, error) {
 	for i, block := range chain {
-		if err := consensus_engine.ValidateBlockHash(block.Hash()); err != nil {
+		if err := validateBlockHashes(block); err != nil {
 			return i, err
 		}
 	}
