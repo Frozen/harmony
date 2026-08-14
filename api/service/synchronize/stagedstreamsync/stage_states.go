@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
-	consensus_engine "github.com/harmony-one/harmony/consensus/engine"
 	"github.com/harmony-one/harmony/core"
 	"github.com/ledgerwatch/erigon-lib/kv"
 	"github.com/rs/zerolog"
@@ -174,8 +173,7 @@ func (stg *StageStates) Exec(ctx context.Context, firstCycle bool, invalidBlockR
 			return ErrInvalidBlockNumber
 		}
 
-		blockErr := consensus_engine.ValidateBlockHash(block.Hash())
-		if blockErr == nil && stg.configs.bc.HasBlock(block.Hash(), block.NumberU64()) {
+		if stg.configs.bc.HasBlock(block.Hash(), block.NumberU64()) {
 			// At this point, there should be some db discrepancies
 			if blk := stg.configs.bc.GetBlock(block.Hash(), block.NumberU64()); blk != nil {
 				if blk.NumberU64() == block.NumberU64() && blk.Hash() == block.Hash() {
@@ -191,17 +189,14 @@ func (stg *StageStates) Exec(ctx context.Context, firstCycle bool, invalidBlockR
 			}
 		}
 
-		if blockErr == nil {
-			blockErr = s.state.UpdateBlockAndStatus(block, stg.configs.bc, false)
-		}
-		if blockErr != nil {
-			stg.configs.logger.Warn().Err(blockErr).Uint64("cycle target block", targetHeight).
+		if err := s.state.UpdateBlockAndStatus(block, stg.configs.bc, false); err != nil {
+			stg.configs.logger.Warn().Err(err).Uint64("cycle target block", targetHeight).
 				Uint64("block number", block.NumberU64()).
 				Msg(WrapStagedSyncMsg("insert blocks failed in long range"))
 			s.state.protocol.StreamFailed(streamID, "unverifiable invalid block is received from stream")
 			invalidBlockHash := block.Hash()
 			reverter.RevertTo(stg.configs.bc.CurrentBlock().NumberU64(), block.NumberU64(), invalidBlockHash, streamID)
-			pl["error"] = blockErr.Error()
+			pl["error"] = err.Error()
 			longRangeFailInsertedBlockCounterVec.With(pl).Inc()
 
 			// Clean up download details for the failed block to prevent memory leaks
@@ -209,7 +204,7 @@ func (stg *StageStates) Exec(ctx context.Context, firstCycle bool, invalidBlockR
 				gbm.CleanupDetails(i)
 			}
 
-			return blockErr
+			return err
 		}
 
 		// Mark block as completed after successful insertion
