@@ -334,6 +334,55 @@ func verifyRevertValidatorList(chain core.BlockChain, target uint64, applyRepair
 	return nil
 }
 
+func rollbackEmergencyRecoveryChain(chain core.BlockChain, target uint64) error {
+	current := chain.CurrentBlock()
+	if current == nil {
+		return errors.New("rollback current block is unavailable")
+	}
+	if current.NumberU64() < target {
+		return errors.Errorf("rollback head %d is below target %d", current.NumberU64(), target)
+	}
+
+	// Prove every parent needed by Rollback before changing the first head or
+	// commit-certificate key. This avoids a partially rewound DB when an
+	// intermediate historical block is missing.
+	for cursor := current; cursor.NumberU64() > target; {
+		parentNumber := cursor.NumberU64() - 1
+		parent := chain.GetBlock(cursor.ParentHash(), parentNumber)
+		if parent == nil {
+			return errors.Errorf("rollback ancestry is incomplete at block %d: parent %s is unavailable",
+				cursor.NumberU64(), cursor.ParentHash().Hex())
+		}
+		cursor = parent
+	}
+
+	for chain.CurrentBlock().NumberU64() > target {
+		before := chain.CurrentBlock()
+		if err := chain.Rollback([]ethCommon.Hash{before.Hash()}); err != nil {
+			return errors.Wrap(err, "revert rollback failed")
+		}
+		after := chain.CurrentBlock()
+		if after == nil {
+			return errors.Errorf("rollback of block %d left no current head", before.NumberU64())
+		}
+		if after.Hash() == before.Hash() && after.NumberU64() == before.NumberU64() {
+			return errors.Errorf("rollback of block %d made no progress", before.NumberU64())
+		}
+		if after.NumberU64()+1 != before.NumberU64() || after.Hash() != before.ParentHash() {
+			return errors.Errorf("rollback of block %d moved to unexpected head %d (%s), want %d (%s)",
+				before.NumberU64(), after.NumberU64(), after.Hash().Hex(),
+				before.NumberU64()-1, before.ParentHash().Hex())
+		}
+
+		lastSig := before.Header().LastCommitSignature()
+		sigAndBitMap := append(lastSig[:], before.Header().LastCommitBitmap()...)
+		if err := chain.WriteCommitSig(after.NumberU64(), sigAndBitMap); err != nil {
+			return errors.Wrapf(err, "write commit certificate for block %d", after.NumberU64())
+		}
+	}
+	return nil
+}
+
 func revert(chain core.BlockChain, hc harmonyconfig.HarmonyConfig) (bool, error) {
 	curNum := chain.CurrentBlock().NumberU64()
 	target := uint64(hc.Revert.RevertTo) - 1
@@ -363,17 +412,8 @@ func revert(chain core.BlockChain, hc harmonyconfig.HarmonyConfig) (bool, error)
 	}
 	if curNum < uint64(hc.Revert.RevertBefore) && curNum >= uint64(hc.Revert.RevertTo) {
 		// Remove invalid blocks
-		for chain.CurrentBlock().NumberU64() >= uint64(hc.Revert.RevertTo) {
-			curBlock := chain.CurrentBlock()
-			rollbacks := []ethCommon.Hash{curBlock.Hash()}
-			if err := chain.Rollback(rollbacks); err != nil {
-				return false, errors.Wrap(err, "revert rollback failed")
-			}
-			lastSig := curBlock.Header().LastCommitSignature()
-			sigAndBitMap := append(lastSig[:], curBlock.Header().LastCommitBitmap()...)
-			if err := chain.WriteCommitSig(curBlock.NumberU64()-1, sigAndBitMap); err != nil {
-				return false, errors.Wrapf(err, "write commit certificate for block %d", curBlock.NumberU64()-1)
-			}
+		if err := rollbackEmergencyRecoveryChain(chain, target); err != nil {
+			return false, err
 		}
 		if err := ensureRevertTargetCommitSig(chain, target); err != nil {
 			return false, err
