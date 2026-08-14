@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/ethdb"
 	consensusengine "github.com/harmony-one/harmony/consensus/engine"
 	"github.com/harmony-one/harmony/core"
 	"github.com/harmony-one/harmony/core/rawdb"
@@ -84,7 +85,29 @@ func ValidateEmergencyRecoveryCheckpoint(blockchain core.BlockChain) error {
 	); err != nil {
 		return err
 	}
+	if err := validateEmergencyRecoveryPersistedHeads(
+		blockchain.ChainDb(), blockchain.CurrentBlock().Hash(),
+	); err != nil {
+		return err
+	}
 	return validateEmergencyRecoveryTargetCertificate(blockchain, targetHash)
+}
+
+func validateEmergencyRecoveryPersistedHeads(db ethdb.KeyValueReader, expected common.Hash) error {
+	if db == nil {
+		return fmt.Errorf("%w: chain database is unavailable", ErrEmergencyRecoveryCheckpointMismatch)
+	}
+	header := rawdb.ReadHeadHeaderHash(db)
+	fast := rawdb.ReadHeadFastBlockHash(db)
+	full := rawdb.ReadHeadBlockHash(db)
+	if header != expected || fast != expected || full != expected {
+		return fmt.Errorf(
+			"%w: persisted heads differ from expected %s (header %s fast %s full %s)",
+			ErrEmergencyRecoveryCheckpointMismatch,
+			expected.Hex(), header.Hex(), fast.Hex(), full.Hex(),
+		)
+	}
+	return nil
 }
 
 func validateEmergencyRecoveryTargetCertificate(blockchain core.BlockChain, targetHash common.Hash) error {

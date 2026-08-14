@@ -167,18 +167,17 @@ func setupNodeLog(config harmonyconfig.HarmonyConfig) {
 	}
 }
 
-func ensureRevertTargetCommitSig(chain core.BlockChain, target uint64) error {
-	current := chain.CurrentBlock()
-	if current == nil || current.NumberU64() != target {
-		return errors.Errorf("cannot verify target certificate at head %d", target)
+func ensureRevertTargetCommitSig(chain core.BlockChain, target uint64, targetBlock *coretypes.Block) error {
+	if targetBlock == nil || targetBlock.NumberU64() != target {
+		return errors.Errorf("cannot verify target certificate for block %d", target)
 	}
 
 	existing, readErr := rawdb.ReadBlockCommitSigExact(chain.ChainDb(), target)
 	child := chain.GetBlockByNumber(target + 1)
-	if child != nil && child.ParentHash() == current.Hash() {
+	if child != nil && child.ParentHash() == targetBlock.Hash() {
 		lastSig := child.Header().LastCommitSignature()
 		expected := append(lastSig[:], child.Header().LastCommitBitmap()...)
-		if err := verifyRevertTargetCommitSig(chain, current, expected); err != nil {
+		if err := verifyRevertTargetCommitSig(chain, targetBlock, expected); err != nil {
 			return err
 		}
 		// Write unconditionally so a legacy fallback read cannot masquerade as
@@ -193,7 +192,7 @@ func ensureRevertTargetCommitSig(chain core.BlockChain, target uint64) error {
 		if !bytes.Equal(readBack, expected) {
 			return errors.Errorf("commit certificate read-back mismatch for target block %d", target)
 		}
-		return verifyRevertTargetCommitSig(chain, current, readBack)
+		return verifyRevertTargetCommitSig(chain, targetBlock, readBack)
 	}
 	if readErr != nil {
 		return errors.Wrapf(readErr, "read commit certificate for target block %d", target)
@@ -201,7 +200,7 @@ func ensureRevertTargetCommitSig(chain core.BlockChain, target uint64) error {
 	if len(existing) <= harmonybls.BLSSignatureSizeInBytes {
 		return errors.Errorf("target block %d has no usable commit certificate or child witness", target)
 	}
-	return verifyRevertTargetCommitSig(chain, current, existing)
+	return verifyRevertTargetCommitSig(chain, targetBlock, existing)
 }
 
 func verifyRevertTargetCommitSig(chain core.BlockChain, target *coretypes.Block, certificate []byte) error {
@@ -334,7 +333,9 @@ func verifyRevertValidatorList(chain core.BlockChain, target uint64, applyRepair
 	return nil
 }
 
-func rollbackEmergencyRecoveryChain(chain core.BlockChain, target uint64) error {
+func rollbackEmergencyRecoveryChain(
+	chain core.BlockChain, target uint64, expectedTargetHash ethCommon.Hash, prepare func() error,
+) error {
 	current := chain.CurrentBlock()
 	if current == nil {
 		return errors.New("rollback current block is unavailable")
@@ -346,7 +347,8 @@ func rollbackEmergencyRecoveryChain(chain core.BlockChain, target uint64) error 
 	// Prove every parent needed by Rollback before changing the first head or
 	// commit-certificate key. This avoids a partially rewound DB when an
 	// intermediate historical block is missing.
-	for cursor := current; cursor.NumberU64() > target; {
+	cursor := current
+	for cursor.NumberU64() > target {
 		parentNumber := cursor.NumberU64() - 1
 		parent := chain.GetBlock(cursor.ParentHash(), parentNumber)
 		if parent == nil {
@@ -354,6 +356,15 @@ func rollbackEmergencyRecoveryChain(chain core.BlockChain, target uint64) error 
 				cursor.NumberU64(), cursor.ParentHash().Hex())
 		}
 		cursor = parent
+	}
+	if cursor.Hash() != expectedTargetHash {
+		return errors.Errorf("rollback ancestry does not reach expected target %s: got %s at block %d",
+			expectedTargetHash.Hex(), cursor.Hash().Hex(), cursor.NumberU64())
+	}
+	if prepare != nil {
+		if err := prepare(); err != nil {
+			return errors.Wrap(err, "prepare recovery rollback")
+		}
 	}
 
 	for chain.CurrentBlock().NumberU64() > target {
@@ -373,12 +384,6 @@ func rollbackEmergencyRecoveryChain(chain core.BlockChain, target uint64) error 
 				before.NumberU64(), after.NumberU64(), after.Hash().Hex(),
 				before.NumberU64()-1, before.ParentHash().Hex())
 		}
-
-		lastSig := before.Header().LastCommitSignature()
-		sigAndBitMap := append(lastSig[:], before.Header().LastCommitBitmap()...)
-		if err := chain.WriteCommitSig(after.NumberU64(), sigAndBitMap); err != nil {
-			return errors.Wrapf(err, "write commit certificate for block %d", after.NumberU64())
-		}
 	}
 	return nil
 }
@@ -392,13 +397,21 @@ func revert(chain core.BlockChain, hc harmonyconfig.HarmonyConfig) (bool, error)
 	if err := verifyRevertTargetState(chain, target); err != nil {
 		return false, err
 	}
+	targetBlock := chain.GetBlockByNumber(target)
+	if targetBlock == nil {
+		return false, errors.Errorf("target block %d disappeared after state verification", target)
+	}
+	expectedTargetHash, _, err := consensus.EmergencyRecoveryCheckpoint()
+	if err != nil {
+		return false, err
+	}
 	// Validate the exact target candidate list before changing a single head or
 	// metadata key. The second call below applies the same verified transform.
 	if err := verifyRevertValidatorList(chain, target, false); err != nil {
 		return false, err
 	}
 	if curNum == target {
-		if err := ensureRevertTargetCommitSig(chain, target); err != nil {
+		if err := ensureRevertTargetCommitSig(chain, target, targetBlock); err != nil {
 			return false, err
 		}
 		if err := verifyRevertValidatorList(chain, target, true); err != nil {
@@ -412,10 +425,10 @@ func revert(chain core.BlockChain, hc harmonyconfig.HarmonyConfig) (bool, error)
 	}
 	if curNum < uint64(hc.Revert.RevertBefore) && curNum >= uint64(hc.Revert.RevertTo) {
 		// Remove invalid blocks
-		if err := rollbackEmergencyRecoveryChain(chain, target); err != nil {
-			return false, err
+		prepare := func() error {
+			return ensureRevertTargetCommitSig(chain, target, targetBlock)
 		}
-		if err := ensureRevertTargetCommitSig(chain, target); err != nil {
+		if err := rollbackEmergencyRecoveryChain(chain, target, expectedTargetHash, prepare); err != nil {
 			return false, err
 		}
 		if err := verifyRevertValidatorList(chain, target, true); err != nil {

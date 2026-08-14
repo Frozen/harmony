@@ -1340,19 +1340,21 @@ func (bc *BlockChainImpl) Rollback(chain []common.Hash) error {
 		if currentFastBlock := bc.CurrentFastBlock(); currentFastBlock != nil && currentFastBlock.Hash() == hash {
 			newFastBlock := bc.GetBlock(currentFastBlock.ParentHash(), currentFastBlock.NumberU64()-1)
 			if newFastBlock != nil {
+				if err := rawdb.WriteHeadFastBlockHash(bc.db, newFastBlock.Hash()); err != nil {
+					return errors.Wrap(err, "write fast head during rollback")
+				}
 				bc.currentFastBlock.Store(newFastBlock)
 				headFastBlockGauge.Update(int64(newFastBlock.NumberU64()))
-				rawdb.WriteHeadFastBlockHash(bc.db, newFastBlock.Hash())
 			}
 		}
 		if currentBlock := bc.CurrentBlock(); currentBlock != nil && currentBlock.Hash() == hash {
 			newBlock := bc.GetBlock(currentBlock.ParentHash(), currentBlock.NumberU64()-1)
 			if newBlock != nil {
+				if err := rawdb.WriteHeadBlockHash(bc.db, newBlock.Hash()); err != nil {
+					return errors.Wrap(err, "write full head during rollback")
+				}
 				bc.currentBlock.Store(newBlock)
 				headBlockGauge.Update(int64(newBlock.NumberU64()))
-				if err := rawdb.WriteHeadBlockHash(bc.db, newBlock.Hash()); err != nil {
-					return err
-				}
 
 				for _, stkTxn := range currentBlock.StakingTransactions() {
 					if stkTxn.StakingType() == staking.DirectiveCreateValidator {

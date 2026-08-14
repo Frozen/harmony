@@ -10,6 +10,7 @@ import (
 	blockfactory "github.com/harmony-one/harmony/block/factory"
 	consensusengine "github.com/harmony-one/harmony/consensus/engine"
 	"github.com/harmony-one/harmony/core"
+	"github.com/harmony-one/harmony/core/rawdb"
 	"github.com/harmony-one/harmony/core/state"
 	"github.com/harmony-one/harmony/core/types"
 	"github.com/harmony-one/harmony/internal/params"
@@ -103,6 +104,21 @@ func TestEmergencyRecoveryCheckpointAcceptsPinnedAncestry(t *testing.T) {
 	require.NoError(t, validateEmergencyRecoveryCheckpointWith(
 		chain, target.Hash(), target.Root(), func(common.Hash) error { return nil },
 	))
+}
+
+func TestEmergencyRecoveryCheckpointValidatesPersistedHeads(t *testing.T) {
+	db := rawdb.NewMemoryDatabase()
+	expected := common.HexToHash("0x1234")
+	require.NoError(t, rawdb.WriteHeadHeaderHash(db, expected))
+	require.NoError(t, rawdb.WriteHeadFastBlockHash(db, expected))
+	require.NoError(t, rawdb.WriteHeadBlockHash(db, expected))
+	require.NoError(t, validateEmergencyRecoveryPersistedHeads(db, expected))
+
+	require.NoError(t, rawdb.WriteHeadFastBlockHash(db, common.HexToHash("0xdead")))
+	require.ErrorIs(t,
+		validateEmergencyRecoveryPersistedHeads(db, expected),
+		ErrEmergencyRecoveryCheckpointMismatch,
+	)
 }
 
 func TestEmergencyRecoveryCheckpointFailsClosed(t *testing.T) {
