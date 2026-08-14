@@ -85,6 +85,19 @@ func newRecoveryCheckpointTestChain() (*recoveryCheckpointTestChain, *types.Bloc
 	return chain, target, descendant
 }
 
+func TestEmergencyRecoveryCheckpointReleaseTuple(t *testing.T) {
+	hash, root, err := EmergencyRecoveryCheckpoint()
+	require.NoError(t, err)
+	require.Equal(t,
+		common.HexToHash("0x30c35d2f2291e4b27debe7862956cf7a0cc7abefc044273d6823567335086d8d"),
+		hash,
+	)
+	require.Equal(t,
+		common.HexToHash("0x39e72dc20835abe61f69966bec2cc4766bb9e893c4168e117154dd539f2fc728"),
+		root,
+	)
+}
+
 func TestEmergencyRecoveryCheckpointAcceptsPinnedAncestry(t *testing.T) {
 	chain, target, _ := newRecoveryCheckpointTestChain()
 	require.NoError(t, validateEmergencyRecoveryCheckpointWith(

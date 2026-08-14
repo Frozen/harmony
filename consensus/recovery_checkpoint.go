@@ -16,10 +16,10 @@ import (
 )
 
 const (
-	// These values are release blockers. Replace them with the independently
-	// verified block-92730034 tuple before producing the recovery binary.
+	// These values pin the independently verified block-92730034 tuple used by
+	// the shard-0 emergency recovery release.
 	EmergencyRecoveryRetainedHashHex = "0x30c35d2f2291e4b27debe7862956cf7a0cc7abefc044273d6823567335086d8d"
-	EmergencyRecoveryRetainedRootHex = "REPLACE_WITH_TARGET_STATE_ROOT"
+	EmergencyRecoveryRetainedRootHex = "0x39e72dc20835abe61f69966bec2cc4766bb9e893c4168e117154dd539f2fc728"
 )
 
 var (
