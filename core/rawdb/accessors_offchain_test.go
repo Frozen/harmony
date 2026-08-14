@@ -1,11 +1,33 @@
 package rawdb
 
 import (
+	"bytes"
 	"math/big"
 	"testing"
 
 	"github.com/harmony-one/harmony/core/types"
 )
+
+func TestReadBlockCommitSigExactNeverUsesLegacyFallback(t *testing.T) {
+	db := NewMemoryDatabase()
+	legacy := []byte("legacy-global-certificate")
+	if err := db.Put(lastCommitsKey, legacy); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := ReadBlockCommitSig(db, 92730034); err != nil || !bytes.Equal(got, legacy) {
+		t.Fatalf("compatibility reader got %x, %v", got, err)
+	}
+	if got, err := ReadBlockCommitSigExact(db, 92730034); err == nil {
+		t.Fatalf("exact reader accepted fallback bytes %x", got)
+	}
+	exact := []byte("height-keyed-certificate")
+	if err := WriteBlockCommitSig(db, 92730034, exact); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := ReadBlockCommitSigExact(db, 92730034); err != nil || !bytes.Equal(got, exact) {
+		t.Fatalf("exact reader got %x, %v", got, err)
+	}
+}
 
 func TestWriteCXReceiptsProofSpentUsesMerkleProofIdentity(t *testing.T) {
 	db := NewMemoryDatabase()

@@ -137,6 +137,9 @@ func (hc *HeaderChain) GetBlockNumber(hash common.Hash) *uint64 {
 // in two scenarios: pure-header mode of operation (light clients), or properly
 // separated header/block phases (non-archive clients).
 func (hc *HeaderChain) WriteHeader(header *block.Header) (status WriteStatus, err error) {
+	if err := ValidateEmergencyRecoveryBlockPolicy(hc.config, types.NewBlockWithHeader(header)); err != nil {
+		return NonStatTy, err
+	}
 	// Cache some values to prevent constant recalculation
 	var (
 		hash   = header.Hash()

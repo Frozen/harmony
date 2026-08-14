@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"math/big"
 	_ "net/http/pprof"
@@ -28,6 +29,10 @@ import (
 	"github.com/harmony-one/harmony/consensus"
 	"github.com/harmony-one/harmony/consensus/quorum"
 	"github.com/harmony-one/harmony/core"
+	"github.com/harmony-one/harmony/core/rawdb"
+	corestate "github.com/harmony-one/harmony/core/state"
+	coretypes "github.com/harmony-one/harmony/core/types"
+	harmonybls "github.com/harmony-one/harmony/crypto/bls"
 	"github.com/harmony-one/harmony/internal/chain"
 	"github.com/harmony-one/harmony/internal/cli"
 	"github.com/harmony-one/harmony/internal/common"
@@ -162,27 +167,283 @@ func setupNodeLog(config harmonyconfig.HarmonyConfig) {
 	}
 }
 
-func revert(chain core.BlockChain, hc harmonyconfig.HarmonyConfig) {
+func ensureRevertTargetCommitSig(chain core.BlockChain, target uint64, targetBlock *coretypes.Block) error {
+	if targetBlock == nil || targetBlock.NumberU64() != target {
+		return errors.Errorf("cannot verify target certificate for block %d", target)
+	}
+
+	existing, readErr := rawdb.ReadBlockCommitSigExact(chain.ChainDb(), target)
+	child := chain.GetBlockByNumber(target + 1)
+	if child != nil && child.ParentHash() == targetBlock.Hash() {
+		lastSig := child.Header().LastCommitSignature()
+		expected := append(lastSig[:], child.Header().LastCommitBitmap()...)
+		if err := verifyRevertTargetCommitSig(chain, targetBlock, expected); err != nil {
+			return err
+		}
+		// Write unconditionally so a legacy fallback read cannot masquerade as
+		// the exact block-sig key after an interrupted earlier rollback.
+		if err := chain.WriteCommitSig(target, expected); err != nil {
+			return errors.Wrapf(err, "write commit certificate for target block %d", target)
+		}
+		readBack, err := rawdb.ReadBlockCommitSigExact(chain.ChainDb(), target)
+		if err != nil {
+			return errors.Wrapf(err, "read back commit certificate for target block %d", target)
+		}
+		if !bytes.Equal(readBack, expected) {
+			return errors.Errorf("commit certificate read-back mismatch for target block %d", target)
+		}
+		return verifyRevertTargetCommitSig(chain, targetBlock, readBack)
+	}
+	if readErr != nil {
+		return errors.Wrapf(readErr, "read commit certificate for target block %d", target)
+	}
+	if len(existing) <= harmonybls.BLSSignatureSizeInBytes {
+		return errors.Errorf("target block %d has no usable commit certificate or child witness", target)
+	}
+	return verifyRevertTargetCommitSig(chain, targetBlock, existing)
+}
+
+func verifyRevertTargetCommitSig(chain core.BlockChain, target *coretypes.Block, certificate []byte) error {
+	if target == nil || target.Header() == nil || len(certificate) <= harmonybls.BLSSignatureSizeInBytes {
+		return errors.New("invalid target commit certificate input")
+	}
+	if chain.Engine() == nil {
+		return errors.New("consensus engine unavailable for target certificate verification")
+	}
+	var signature harmonybls.SerializedSignature
+	copy(signature[:], certificate[:harmonybls.BLSSignatureSizeInBytes])
+	if err := chain.Engine().VerifyHeaderSignature(
+		chain, target.Header(), signature, certificate[harmonybls.BLSSignatureSizeInBytes:],
+	); err != nil {
+		return errors.Wrap(err, "target commit certificate cryptographic verification failed")
+	}
+	return nil
+}
+
+func verifyRevertTargetState(chain core.BlockChain, target uint64) error {
+	if target != consensus.EmergencyRecoveryRetainedBlock {
+		return errors.Errorf("recovery binary only permits retained block %d, got %d",
+			consensus.EmergencyRecoveryRetainedBlock, target)
+	}
+	targetHash, targetRoot, err := consensus.EmergencyRecoveryCheckpoint()
+	if err != nil {
+		return err
+	}
+	block := chain.GetBlockByNumber(target)
+	if block == nil || block.Header() == nil {
+		return errors.Errorf("target block %d is unavailable", target)
+	}
+	if block.Hash() != targetHash || block.Root() != targetRoot {
+		return errors.Errorf("target block tuple mismatch: got hash %s root %s",
+			block.Hash().Hex(), block.Root().Hex())
+	}
+	stateDB, err := chain.StateAt(targetRoot)
+	if err != nil {
+		return errors.Wrap(err, "open target state")
+	}
+	iterator := corestate.NewNodeIterator(stateDB)
+	var nodes uint64
+	for iterator.Next() {
+		nodes++
+		if nodes%1_000_000 == 0 {
+			fmt.Printf("Target state traversal progress: %d entries\n", nodes)
+		}
+	}
+	if iterator.Error != nil {
+		return errors.Wrap(iterator.Error, "target state traversal failed")
+	}
+	fmt.Printf("Target state traversal complete: %d entries\n", nodes)
+	return nil
+}
+
+func verifyRevertValidatorList(chain core.BlockChain, target uint64, applyRepair bool) error {
+	block := chain.GetBlockByNumber(target)
+	if block == nil {
+		return errors.Errorf("target block %d is unavailable for validator-list verification", target)
+	}
+	stateDB, err := chain.StateAt(block.Root())
+	if err != nil {
+		return errors.Wrap(err, "open target state for validator-list verification")
+	}
+	validators, err := chain.ReadValidatorList()
+	if err != nil {
+		return errors.Wrap(err, "read validator list")
+	}
+	seen := make(map[ethCommon.Address]struct{}, len(validators))
+	filtered := make([]ethCommon.Address, 0, len(validators))
+	for i, address := range validators {
+		if _, duplicate := seen[address]; duplicate {
+			return errors.Errorf("validator list contains duplicate address %s at index %d", address.Hex(), i)
+		}
+		seen[address] = struct{}{}
+		if !stateDB.IsValidator(address) {
+			// Validator-list is append-only in ordinary operation. An address
+			// absent from the pinned target state was therefore created on the
+			// discarded branch (or left by an interrupted legacy rollback).
+			continue
+		}
+		wrapper, err := stateDB.ValidatorWrapper(address, true, false)
+		if err != nil {
+			return errors.Wrapf(err, "load target validator %s", address.Hex())
+		}
+		if wrapper.Address != address {
+			return errors.Errorf("target validator wrapper address mismatch: key %s wrapper %s",
+				address.Hex(), wrapper.Address.Hex())
+		}
+		if wrapper.CreationHeight == nil || wrapper.CreationHeight.Sign() < 0 ||
+			!wrapper.CreationHeight.IsUint64() || wrapper.CreationHeight.Uint64() > target {
+			return errors.Errorf("target validator %s has invalid creation height %v",
+				address.Hex(), wrapper.CreationHeight)
+		}
+		if err := wrapper.SanityCheck(); err != nil {
+			return errors.Wrapf(err, "target validator %s failed sanity check", address.Hex())
+		}
+		filtered = append(filtered, address)
+	}
+	// Validate the complete ordered result before writing anything. This both
+	// detects missing pre-target validators and prevents a local DB from choosing
+	// its own candidate set.
+	count, digest, err := consensus.EmergencyRecoveryValidatorListManifest(filtered)
+	if err != nil {
+		return errors.Wrap(err, "compute target validator-list manifest")
+	}
+	fmt.Printf("Target validator list candidate: %d entries sha256 %s\n", count, digest)
+	if err := consensus.ValidateEmergencyRecoveryValidatorList(filtered); err != nil {
+		return err
+	}
+	if applyRepair && len(filtered) != len(validators) {
+		if err := chain.WriteValidatorList(chain.ChainDb(), filtered); err != nil {
+			return errors.Wrap(err, "write repaired target validator list")
+		}
+		readBack, err := chain.ReadValidatorList()
+		if err != nil {
+			return errors.Wrap(err, "read back repaired target validator list")
+		}
+		if len(readBack) != len(filtered) {
+			return errors.New("validator-list repair read-back count mismatch")
+		}
+		for i := range filtered {
+			if readBack[i] != filtered[i] {
+				return errors.Errorf("validator-list repair read-back mismatch at index %d", i)
+			}
+		}
+		fmt.Printf("Target validator list repair removed: %d entries\n", len(validators)-len(filtered))
+	}
+	fmt.Printf("Target validator list verification complete: %d entries\n", len(filtered))
+	return nil
+}
+
+func rollbackEmergencyRecoveryChain(
+	chain core.BlockChain, target uint64, expectedTargetHash ethCommon.Hash, prepare func() error,
+) error {
+	current := chain.CurrentBlock()
+	if current == nil {
+		return errors.New("rollback current block is unavailable")
+	}
+	if current.NumberU64() < target {
+		return errors.Errorf("rollback head %d is below target %d", current.NumberU64(), target)
+	}
+
+	// Prove every parent needed by Rollback before changing the first head or
+	// commit-certificate key. This avoids a partially rewound DB when an
+	// intermediate historical block is missing.
+	cursor := current
+	for cursor.NumberU64() > target {
+		parentNumber := cursor.NumberU64() - 1
+		parent := chain.GetBlock(cursor.ParentHash(), parentNumber)
+		if parent == nil {
+			return errors.Errorf("rollback ancestry is incomplete at block %d: parent %s is unavailable",
+				cursor.NumberU64(), cursor.ParentHash().Hex())
+		}
+		cursor = parent
+	}
+	if cursor.Hash() != expectedTargetHash {
+		return errors.Errorf("rollback ancestry does not reach expected target %s: got %s at block %d",
+			expectedTargetHash.Hex(), cursor.Hash().Hex(), cursor.NumberU64())
+	}
+	if prepare != nil {
+		if err := prepare(); err != nil {
+			return errors.Wrap(err, "prepare recovery rollback")
+		}
+	}
+
+	for chain.CurrentBlock().NumberU64() > target {
+		before := chain.CurrentBlock()
+		if err := chain.Rollback([]ethCommon.Hash{before.Hash()}); err != nil {
+			return errors.Wrap(err, "revert rollback failed")
+		}
+		after := chain.CurrentBlock()
+		if after == nil {
+			return errors.Errorf("rollback of block %d left no current head", before.NumberU64())
+		}
+		if after.Hash() == before.Hash() && after.NumberU64() == before.NumberU64() {
+			return errors.Errorf("rollback of block %d made no progress", before.NumberU64())
+		}
+		if after.NumberU64()+1 != before.NumberU64() || after.Hash() != before.ParentHash() {
+			return errors.Errorf("rollback of block %d moved to unexpected head %d (%s), want %d (%s)",
+				before.NumberU64(), after.NumberU64(), after.Hash().Hex(),
+				before.NumberU64()-1, before.ParentHash().Hex())
+		}
+	}
+	return nil
+}
+
+func revert(chain core.BlockChain, hc harmonyconfig.HarmonyConfig) (bool, error) {
 	curNum := chain.CurrentBlock().NumberU64()
+	target := uint64(hc.Revert.RevertTo) - 1
+	// Prove the exact target's complete account/storage/code trie before changing
+	// a single head pointer. Missing historical state therefore leaves the node
+	// stopped on its original database instead of partially rewound.
+	if err := verifyRevertTargetState(chain, target); err != nil {
+		return false, err
+	}
+	targetBlock := chain.GetBlockByNumber(target)
+	if targetBlock == nil {
+		return false, errors.Errorf("target block %d disappeared after state verification", target)
+	}
+	expectedTargetHash, _, err := consensus.EmergencyRecoveryCheckpoint()
+	if err != nil {
+		return false, err
+	}
+	// Validate the exact target candidate list before changing a single head or
+	// metadata key. The second call below applies the same verified transform.
+	if err := verifyRevertValidatorList(chain, target, false); err != nil {
+		return false, err
+	}
+	if curNum == target {
+		if err := ensureRevertTargetCommitSig(chain, target, targetBlock); err != nil {
+			return false, err
+		}
+		if err := verifyRevertValidatorList(chain, target, true); err != nil {
+			return false, err
+		}
+		if err := consensus.ValidateEmergencyRecoveryCheckpoint(chain); err != nil {
+			return false, errors.Wrap(err, "verify recovery postconditions")
+		}
+		fmt.Printf("Revert finished. Current block: %v\n", chain.CurrentBlock().NumberU64())
+		return true, nil
+	}
 	if curNum < uint64(hc.Revert.RevertBefore) && curNum >= uint64(hc.Revert.RevertTo) {
 		// Remove invalid blocks
-		for chain.CurrentBlock().NumberU64() >= uint64(hc.Revert.RevertTo) {
-			curBlock := chain.CurrentBlock()
-			rollbacks := []ethCommon.Hash{curBlock.Hash()}
-			if err := chain.Rollback(rollbacks); err != nil {
-				fmt.Printf("Revert failed: %v\n", err)
-				os.Exit(1)
-			}
-			lastSig := curBlock.Header().LastCommitSignature()
-			sigAndBitMap := append(lastSig[:], curBlock.Header().LastCommitBitmap()...)
-			chain.WriteCommitSig(curBlock.NumberU64()-1, sigAndBitMap)
+		prepare := func() error {
+			return ensureRevertTargetCommitSig(chain, target, targetBlock)
+		}
+		if err := rollbackEmergencyRecoveryChain(chain, target, expectedTargetHash, prepare); err != nil {
+			return false, err
+		}
+		if err := verifyRevertValidatorList(chain, target, true); err != nil {
+			return false, err
+		}
+		if err := consensus.ValidateEmergencyRecoveryCheckpoint(chain); err != nil {
+			return false, errors.Wrap(err, "verify recovery postconditions")
 		}
 		fmt.Printf("Revert finished. Current block: %v\n", chain.CurrentBlock().NumberU64())
 		utils.Logger().Warn().
 			Uint64("Current Block", chain.CurrentBlock().NumberU64()).
 			Msg("Revert finished.")
-		os.Exit(1)
+		return true, nil
 	}
+	return false, nil
 }
 
 func setupNodeAndRun(hc harmonyconfig.HarmonyConfig) {
@@ -221,6 +482,12 @@ func setupNodeAndRun(hc harmonyconfig.HarmonyConfig) {
 			initialAccount.ShardID = uint32(hc.General.ShardID)
 		}
 	}
+	// This one-off recovery release never permits a shard-0 head jump. Enforce
+	// isolation in the binary so a validator's pre-existing TOML cannot silently
+	// re-enable a sync path during coordinated activation.
+	if shardID, ok := emergencyRecoveryShardID(hc, initialAccounts); ok {
+		applyEmergencyRecoveryNetworkIsolation(&hc, shardID)
+	}
 
 	nodeConfig, err := createGlobalConfig(hc)
 	if err != nil {
@@ -244,9 +511,13 @@ func setupNodeAndRun(hc harmonyconfig.HarmonyConfig) {
 	nodeconfig.GetDefaultConfig().ShardID = nodeConfig.ShardID
 	nodeconfig.GetDefaultConfig().IsOffline = nodeConfig.IsOffline
 	nodeconfig.GetDefaultConfig().SyncClient = nodeConfig.SyncClient
+	if err := validateEmergencyRecoveryStartup(hc, currentNode.Blockchain()); err != nil {
+		utils.Logger().Panic().Err(err).
+			Msg("refusing unsafe emergency-recovery startup")
+	}
 
 	// It skips the time accuracy check on the localnet since all nodes are running on the same machine
-	if hc.Network.NetworkType != nodeconfig.Localnet {
+	if hc.Network.NetworkType != nodeconfig.Localnet && !hc.General.IsOffline {
 		clockAccuracyResp, err := ntp.CheckLocalTimeAccurate(nodeConfig.NtpServer)
 		if !clockAccuracyResp.IsAccurate() {
 			if clockAccuracyResp.AllNtpServersTimedOut() {
@@ -277,7 +548,16 @@ func setupNodeAndRun(hc harmonyconfig.HarmonyConfig) {
 		if hc.Revert.RevertBeacon {
 			chain = currentNode.Beaconchain()
 		}
-		revert(chain, hc)
+		didRevert, err := revert(chain, hc)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Revert failed: %v\n", err)
+			currentNode.ShutDownWithExitCode(1)
+		}
+		if didRevert {
+			// Close LevelDB and flush the selected head before reporting process
+			// success. ShutDown exits zero after the close completes.
+			currentNode.ShutDown()
+		}
 	}
 
 	//// code to handle pre-image export, import and generation
@@ -432,6 +712,115 @@ func setupNodeAndRun(hc harmonyconfig.HarmonyConfig) {
 	}
 
 	select {}
+}
+
+// validateEmergencyRecoveryStartup permits offline maintenance (including the
+// one-shot --revert invocation), but makes every networked mainnet shard-0
+// start prove the exact recovery ancestry and disable head-jump sync paths.
+func validateEmergencyRecoveryStartup(hc harmonyconfig.HarmonyConfig, blockchain core.BlockChain) error {
+	if hc.General.IsOffline {
+		return nil
+	}
+	if blockchain == nil {
+		return errors.New("nil blockchain during startup validation")
+	}
+	if !consensus.IsEmergencyRecoveryMainnetShard0(blockchain.Config(), blockchain.ShardID()) {
+		return nil
+	}
+	if hc.General.RunElasticMode {
+		return errors.New("TiKV elastic mode is disabled during emergency recovery")
+	}
+	if hc.Sync.Enabled || hc.Sync.Client || hc.DNSSync.Client || hc.DNSSync.Server {
+		return errors.New("all stream and legacy sync clients/servers must be disabled during emergency recovery")
+	}
+	if err := consensus.ValidateEmergencyRecoveryCheckpoint(blockchain); err != nil {
+		return err
+	}
+	return validateEmergencyRecoveryStartupValidatorList(blockchain)
+}
+
+// validateEmergencyRecoveryStartupValidatorList checks the raw, unversioned
+// list exactly as persisted. Unlike the offline repair candidate, startup must
+// not filter or normalize it: any leftover abandoned-branch address means the
+// recovery cut did not complete and the node must remain stopped.
+func validateEmergencyRecoveryStartupValidatorList(blockchain core.BlockChain) error {
+	return validateEmergencyRecoveryStartupValidatorListWith(
+		blockchain, consensus.ValidateEmergencyRecoveryValidatorList,
+	)
+}
+
+func validateEmergencyRecoveryStartupValidatorListWith(
+	blockchain core.BlockChain,
+	validateManifest func([]ethCommon.Address) error,
+) error {
+	if blockchain == nil || blockchain.CurrentBlock() == nil {
+		return errors.New("cannot validate recovery validator list without a chain head")
+	}
+	validators, err := blockchain.ReadValidatorList()
+	if err != nil {
+		return errors.Wrap(err, "read recovery validator list at startup")
+	}
+	if validateManifest == nil {
+		return errors.New("nil recovery validator-list manifest validator")
+	}
+	if err := validateManifest(validators); err != nil {
+		return err
+	}
+	stateDB, err := blockchain.StateAt(blockchain.CurrentBlock().Root())
+	if err != nil {
+		return errors.Wrap(err, "open current state for recovery validator-list startup check")
+	}
+	seen := make(map[ethCommon.Address]struct{}, len(validators))
+	for i, address := range validators {
+		if _, duplicate := seen[address]; duplicate {
+			return errors.Errorf("recovery validator list contains duplicate %s at index %d", address.Hex(), i)
+		}
+		seen[address] = struct{}{}
+		if !stateDB.IsValidator(address) {
+			return errors.Errorf("recovery validator list address %s is absent from current state", address.Hex())
+		}
+		wrapper, err := stateDB.ValidatorWrapper(address, true, false)
+		if err != nil {
+			return errors.Wrapf(err, "load recovery validator %s at startup", address.Hex())
+		}
+		if wrapper.Address != address {
+			return errors.Errorf("recovery validator wrapper address mismatch: key %s wrapper %s",
+				address.Hex(), wrapper.Address.Hex())
+		}
+		if wrapper.CreationHeight == nil || wrapper.CreationHeight.Sign() < 0 ||
+			!wrapper.CreationHeight.IsUint64() ||
+			wrapper.CreationHeight.Uint64() > consensus.EmergencyRecoveryRetainedBlock {
+			return errors.Errorf("recovery validator %s has invalid creation height %v",
+				address.Hex(), wrapper.CreationHeight)
+		}
+		if err := wrapper.SanityCheck(); err != nil {
+			return errors.Wrapf(err, "recovery validator %s failed startup sanity check", address.Hex())
+		}
+	}
+	return nil
+}
+
+func applyEmergencyRecoveryNetworkIsolation(hc *harmonyconfig.HarmonyConfig, shardID uint32) bool {
+	if hc == nil || hc.Network.NetworkType != nodeconfig.Mainnet || shardID != shard.BeaconChainShardID {
+		return false
+	}
+	hc.Sync.Enabled = false
+	hc.Sync.Client = false
+	hc.DNSSync.Client = false
+	hc.DNSSync.Server = false
+	return true
+}
+
+func emergencyRecoveryShardID(
+	hc harmonyconfig.HarmonyConfig, accounts []*genesis.DeployAccount,
+) (uint32, bool) {
+	if len(accounts) != 0 {
+		return accounts[0].ShardID, true
+	}
+	if hc.General.ShardID < 0 {
+		return 0, false
+	}
+	return uint32(hc.General.ShardID), true
 }
 
 func nodeconfigSetShardSchedule(config harmonyconfig.HarmonyConfig) {
@@ -783,16 +1172,41 @@ func setupConsensusAndNode(hc harmonyconfig.HarmonyConfig, nodeConfig *nodeconfi
 			Msg("InitConsensusWithMembers failed")
 	}
 
-	// Set the consensus ID to be the current block number
+	// Offline maintenance never starts consensus signing, so it must remain
+	// usable for preflight and rollback even before release constants are filled.
+	// Every networked validator installs the floor before any signing service.
+	if !hc.General.IsOffline {
+		if err := currentConsensus.ConfigureEmergencyRecoveryViewIDFloor(); err != nil {
+			utils.Logger().Panic().Err(err).
+				Msg("refusing to start without a valid emergency recovery ViewID floor")
+		}
+	}
+
+	// Set the consensus ID to the checked successor of the retained head's view.
 	viewID := currentNode.Blockchain().CurrentBlock().Header().ViewID().Uint64()
-	currentConsensus.SetViewIDs(viewID + 1)
+	nextViewID, err := consensus.CheckedNextViewID(viewID)
+	if err != nil {
+		utils.Logger().Panic().Err(err).
+			Uint64("headViewID", viewID).
+			Msg("refusing to start because the head ViewID cannot advance")
+	}
+	currentConsensus.SetViewIDs(nextViewID)
 	utils.Logger().Info().
-		Uint64("viewID", viewID).
+		Uint64("headViewID", viewID).
+		Uint64("consensusViewID", currentConsensus.GetCurBlockViewID()).
 		Msg("Init Blockchain")
 
 	currentNode.Consensus.Registry().SetNodeConfig(currentNode.NodeConfig)
-	// update consensus information based on the blockchain
-	currentConsensus.SetMode(currentConsensus.UpdateConsensusInformation("setupConsensusAndNode"))
+	// Update the committee first, then derive the leader from the exact recovery
+	// view gap before StartChannel can trigger a proposal.
+	mode := currentConsensus.UpdateConsensusInformation("setupConsensusAndNode")
+	if !hc.General.IsOffline {
+		if err := currentConsensus.InitializeEmergencyRecoveryLeader(); err != nil {
+			utils.Logger().Panic().Err(err).
+				Msg("refusing to start without a deterministic emergency recovery leader")
+		}
+	}
+	currentConsensus.SetMode(mode)
 	currentConsensus.NextBlockDue = time.Now()
 	return currentNode
 }

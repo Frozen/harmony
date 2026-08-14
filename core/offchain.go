@@ -31,6 +31,15 @@ func (bc *BlockChainImpl) CommitOffChainData(
 	payout reward.Reader,
 	state *state.DB,
 ) (status WriteStatus, err error) {
+	if err := validateBlockHashes(block); err != nil {
+		return NonStatTy, err
+	}
+	if err := ValidateEmergencyRecoveryBlockPolicy(bc.chainConfig, block); err != nil {
+		return NonStatTy, err
+	}
+	if err := validateEmergencyRecoveryDerivedStaking(bc.chainConfig, block, len(stakeMsgs)); err != nil {
+		return NonStatTy, err
+	}
 	// Write receipts of the block
 	if err := rawdb.WriteReceipts(batch, block.Hash(), block.NumberU64(), receipts); err != nil {
 		return NonStatTy, err
@@ -196,7 +205,7 @@ func (bc *BlockChainImpl) CommitOffChainData(
 		utils.Logger().Debug().Msgf(msg, len(*crossLinks), num)
 	}
 
-	if isBeaconChain && bc.Config().IsCrossLink(bc.CurrentBlock().Epoch()) {
+	if bc.shouldRollUpLatestCrossLinks(block, isBeaconChain) {
 		// Roll up latest crosslinks
 		for i, c := uint32(0), shard.Schedule.InstanceForEpoch(
 			epoch,
@@ -285,6 +294,15 @@ func (bc *BlockChainImpl) CommitOffChainData(
 	}
 
 	return CanonStatTy, nil
+}
+
+// shouldRollUpLatestCrossLinks prevents stock Rollback's abandoned crosslink
+// indexes from advancing last-continuous markers while recovery keeps
+// crosslinks frozen. Other networks and retained mainnet history are unchanged.
+func (bc *BlockChainImpl) shouldRollUpLatestCrossLinks(block *types.Block, isBeaconChain bool) bool {
+	return isBeaconChain &&
+		!isEmergencyRecoveryBlock(bc.chainConfig, block) &&
+		bc.Config().IsCrossLink(bc.CurrentBlock().Epoch())
 }
 
 func (bc *BlockChainImpl) writeValidatorStats(

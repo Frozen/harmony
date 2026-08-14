@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum/go-ethereum/rlp"
 
 	msg_pb "github.com/harmony-one/harmony/api/proto/message"
+	consensusengine "github.com/harmony-one/harmony/consensus/engine"
 	"github.com/harmony-one/harmony/consensus/signature"
 	"github.com/harmony-one/harmony/core/types"
 	"github.com/harmony-one/harmony/crypto/bls"
@@ -19,11 +20,20 @@ import (
 
 func (consensus *Consensus) onAnnounce(msg *msg_pb.Message) {
 	recvMsg, err := consensus.parseFBFTMessage(msg)
-	if err != nil {
+	if err != nil || recvMsg == nil {
 		consensus.getLogger().Error().
 			Err(err).
-			Uint64("MsgBlockNum", recvMsg.BlockNum).
 			Msg("[OnAnnounce] Unparseable leader message")
+		return
+	}
+	// Reject an abandoned block before it can enter the FBFT log or cause this
+	// validator to sign PREPARE.  validateNewBlock repeats this check for every
+	// other entry point.
+	if err := consensusengine.ValidateBlockHash(recvMsg.BlockHash); err != nil {
+		consensus.getLogger().Warn().Err(err).
+			Uint64("MsgBlockNum", recvMsg.BlockNum).
+			Str("MsgBlockHash", recvMsg.BlockHash.Hex()).
+			Msg("[OnAnnounce] Rejected block")
 		return
 	}
 
@@ -40,16 +50,7 @@ func (consensus *Consensus) onAnnounce(msg *msg_pb.Message) {
 		}
 		return
 	}
-	consensus.StartFinalityCount()
-
-	consensus.getLogger().Info().
-		Uint64("MsgViewID", recvMsg.ViewID).
-		Uint64("MsgBlockNum", recvMsg.BlockNum).
-		Msg("[OnAnnounce] Announce message Added")
-	consensus.fBFTLog.AddVerifiedMessage(recvMsg)
-	consensus.current.blockHash = recvMsg.BlockHash
-	// we have already added message and block, skip check viewID
-	// and send prepare message if is in ViewChanging mode
+	// Do not cache or sign an announce while view change is in progress.
 	if consensus.isViewChangingMode() {
 		consensus.getLogger().Debug().
 			Msg("[OnAnnounce] Still in ViewChanging Mode, Exiting !!")
@@ -65,19 +66,29 @@ func (consensus *Consensus) onAnnounce(msg *msg_pb.Message) {
 		}
 		return
 	}
+	// Announce must carry the block.  Signing a hash before decoding and fully
+	// validating its block is unsafe during recovery.
+	if len(recvMsg.Block) == 0 {
+		consensus.getLogger().Warn().
+			Uint64("MsgBlockNum", recvMsg.BlockNum).
+			Msg("[OnAnnounce] Announce has no block payload")
+		return
+	}
+	if _, err := consensus.validateNewBlock(recvMsg); err != nil {
+		consensus.getLogger().Warn().Err(err).
+			Uint64("MsgBlockNum", recvMsg.BlockNum).
+			Msg("[OnAnnounce] Block validation failed before PREPARE")
+		return
+	}
+
+	consensus.StartFinalityCount()
+	consensus.current.blockHash = recvMsg.BlockHash
+	consensus.getLogger().Info().
+		Uint64("MsgViewID", recvMsg.ViewID).
+		Uint64("MsgBlockNum", recvMsg.BlockNum).
+		Msg("[OnAnnounce] Validated announce added")
 	consensus.prepare()
 	consensus.switchPhase("Announce", FBFTPrepare)
-
-	if len(recvMsg.Block) > 0 {
-		go func() {
-			// Best effort check, no need to error out.
-			_, err := consensus.ValidateNewBlock(recvMsg)
-			if err == nil {
-				consensus.GetLogger().Info().
-					Msgf("[Announce] Block verified %d", recvMsg.BlockNum)
-			}
-		}()
-	}
 }
 
 func (consensus *Consensus) ValidateNewBlock(recvMsg *FBFTMessage) (*types.Block, error) {
@@ -86,6 +97,9 @@ func (consensus *Consensus) ValidateNewBlock(recvMsg *FBFTMessage) (*types.Block
 	return consensus.validateNewBlock(recvMsg)
 }
 func (consensus *Consensus) validateNewBlock(recvMsg *FBFTMessage) (*types.Block, error) {
+	if err := consensusengine.ValidateBlockHash(recvMsg.BlockHash); err != nil {
+		return nil, err
+	}
 	if consensus.fBFTLog.IsBlockVerified(recvMsg.BlockHash) {
 		var blockObj *types.Block
 
@@ -101,6 +115,15 @@ func (consensus *Consensus) validateNewBlock(recvMsg *FBFTMessage) (*types.Block
 			}
 			blockObj = &blockObj2
 		}
+		if blockObj == nil || blockObj.Header() == nil {
+			return nil, errors.New("verified block is missing its header")
+		}
+		if blockObj.Header().ViewID().Uint64() != recvMsg.ViewID {
+			return nil, errors.New("verified block ViewID does not match announce ViewID")
+		}
+		if err := consensus.assertEmergencyRecoveryBlockViewID(blockObj.Header().ViewID().Uint64()); err != nil {
+			return nil, err
+		}
 		consensus.getLogger().Info().
 			Msg("[validateNewBlock] Block Already verified")
 		return blockObj, nil
@@ -115,14 +138,23 @@ func (consensus *Consensus) validateNewBlock(recvMsg *FBFTMessage) (*types.Block
 		return nil, errors.New("Failed parsing new block")
 	}
 
-	consensus.fBFTLog.AddBlock(&blockObj)
-
 	// let this handle it own logs
 	if !consensus.newBlockSanityChecks(&blockObj, recvMsg) {
 		return nil, errors.New("new block failed sanity checks")
 	}
+	if blockObj.Header().ViewID().Uint64() != recvMsg.ViewID {
+		return nil, errors.New("block ViewID does not match announce ViewID")
+	}
+	if err := consensus.assertEmergencyRecoveryBlockViewID(blockObj.Header().ViewID().Uint64()); err != nil {
+		return nil, err
+	}
+	if err := consensus.verifyBlock(&blockObj); err != nil {
+		consensus.getLogger().Error().Err(err).Msg("[validateNewBlock] Block verification failed")
+		return nil, errors.Errorf("Block verification failed: %s", err.Error())
+	}
 
-	// add block field
+	// Only cache the block and message after complete validation succeeds.
+	consensus.fBFTLog.AddBlock(&blockObj)
 	blockPayload := make([]byte, len(recvMsg.Block))
 	copy(blockPayload[:], recvMsg.Block[:])
 	consensus.current.block = blockPayload
@@ -133,11 +165,6 @@ func (consensus *Consensus) validateNewBlock(recvMsg *FBFTMessage) (*types.Block
 		Uint64("MsgBlockNum", recvMsg.BlockNum).
 		Hex("blockHash", recvMsg.BlockHash[:]).
 		Msg("[validateNewBlock] Prepared message and block added")
-
-	if err := consensus.verifyBlock(&blockObj); err != nil {
-		consensus.getLogger().Error().Err(err).Msg("[validateNewBlock] Block verification failed")
-		return nil, errors.Errorf("Block verification failed: %s", err.Error())
-	}
 	return &blockObj, nil
 }
 
@@ -166,6 +193,10 @@ func (consensus *Consensus) prepare() {
 // sendCommitMessages send out commit messages to leader
 func (consensus *Consensus) sendCommitMessages(blockObj *types.Block) {
 	if consensus.isBackup || blockObj == nil {
+		return
+	}
+	if err := consensus.assertEmergencyRecoveryBlockViewID(blockObj.Header().ViewID().Uint64()); err != nil {
+		consensus.getLogger().Error().Err(err).Msg("[sendCommitMessages] unsafe recovery ViewID")
 		return
 	}
 
@@ -241,6 +272,7 @@ func (consensus *Consensus) onPrepared(recvMsg *FBFTMessage) {
 			Uint64("MsgBlockNum", recvMsg.BlockNum).
 			Uint64("MsgViewID", recvMsg.ViewID).
 			Msg("[OnPrepared] failed to verify new block")
+		return
 	}
 
 	if consensus.checkViewID(recvMsg) != nil {

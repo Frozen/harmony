@@ -18,6 +18,10 @@ import (
 
 // announce fires leader
 func (consensus *Consensus) announce(block *types.Block) {
+	if err := consensus.assertEmergencyRecoveryBlockViewID(block.Header().ViewID().Uint64()); err != nil {
+		consensus.getLogger().Error().Err(err).Msg("[Announce] unsafe recovery ViewID")
+		return
+	}
 	blockHash := block.Hash()
 
 	// prepare message and broadcast to validators

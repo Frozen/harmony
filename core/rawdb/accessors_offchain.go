@@ -406,6 +406,14 @@ func ReadBlockCommitSig(db DatabaseReader, blockNum uint64) ([]byte, error) {
 	return data, nil
 }
 
+// ReadBlockCommitSigExact retrieves only the height-keyed certificate. Unlike
+// ReadBlockCommitSig, it never falls back to the legacy global LastCommits key.
+// Recovery verification must use this accessor so a stale fallback cannot
+// masquerade as a durably persisted target certificate.
+func ReadBlockCommitSigExact(db DatabaseReader, blockNum uint64) ([]byte, error) {
+	return db.Get(blockCommitSigKey(blockNum))
+}
+
 // WriteBlockCommitSig ..
 func WriteBlockCommitSig(db DatabaseWriter, blockNum uint64, sigAndBitmap []byte) error {
 	return db.Put(blockCommitSigKey(blockNum), sigAndBitmap)

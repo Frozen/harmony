@@ -23,6 +23,9 @@ const (
 
 // ProposeNewBlock proposes a new block...
 func (consensus *Consensus) ProposeNewBlock(now time.Time, commitSigs chan []byte) (*types.Block, error) {
+	if err := consensus.assertEmergencyRecoveryViewID(consensus.getCurBlockViewID()); err != nil {
+		return nil, errors.Wrap(err, "refusing to propose with unsafe ViewID")
+	}
 	var (
 		currentHeader = consensus.Blockchain().CurrentHeader()
 		nowEpoch      = currentHeader.Epoch()
@@ -40,6 +43,9 @@ func (consensus *Consensus) ProposeNewBlock(now time.Time, commitSigs chan []byt
 		return nil, errors.Wrap(err, "failed to update worker")
 	}
 	header := env.CurrentHeader()
+	recoveryFeatureFreeze := core.IsEmergencyRecoveryFeatureFreeze(
+		consensus.Blockchain().Config(), consensus.ShardID, header.Number().Uint64(),
+	)
 	shardState, err := consensus.Blockchain().ReadShardState(header.Epoch())
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed to read shard")
@@ -99,7 +105,7 @@ func (consensus *Consensus) ProposeNewBlock(now time.Time, commitSigs chan []byt
 					plainTxsPerAcc = append(plainTxsPerAcc, plainTx)
 				} else if stakingTx, ok := tx.(*staking.StakingTransaction); ok {
 					// Only process staking transactions after pre-staking epoch happened.
-					if consensus.Blockchain().Config().IsPreStaking(worker.GetCurrentHeader().Epoch()) {
+					if !recoveryFeatureFreeze && consensus.Blockchain().Config().IsPreStaking(worker.GetCurrentHeader().Epoch()) {
 						pendingStakingTxs = append(pendingStakingTxs, stakingTx)
 					}
 				} else {
@@ -131,7 +137,10 @@ func (consensus *Consensus) ProposeNewBlock(now time.Time, commitSigs chan []byt
 	// being a significant problem, the source shards will stop
 	// accepting txs destined to the shards which are shutting down
 	// one epoch prior the shut down
-	receiptsList := consensus.proposeReceiptsProof()
+	var receiptsList []*types.CXReceiptsProof
+	if !recoveryFeatureFreeze {
+		receiptsList = consensus.proposeReceiptsProof()
+	}
 
 	if len(receiptsList) != 0 {
 		if err := worker.CommitReceipts(receiptsList); err != nil {
@@ -148,7 +157,7 @@ func (consensus *Consensus) ProposeNewBlock(now time.Time, commitSigs chan []byt
 	utils.AnalysisStart("proposeNewBlockVerifyCrossLinks")
 	// Prepare cross links and slashing messages
 	var crossLinksToPropose types.CrossLinks
-	if isBeaconchainInCrossLinkEra {
+	if isBeaconchainInCrossLinkEra && !recoveryFeatureFreeze {
 		allPending, err := consensus.Blockchain().ReadPendingCrossLinks()
 		invalidToDelete := []types.CrossLink{}
 		if err == nil {
@@ -211,7 +220,7 @@ func (consensus *Consensus) ProposeNewBlock(now time.Time, commitSigs chan []byt
 	}
 	utils.AnalysisEnd("proposeNewBlockVerifyCrossLinks")
 
-	if isBeaconchainInStakingEra {
+	if isBeaconchainInStakingEra && !recoveryFeatureFreeze {
 		// this will set a meaningful w.current.slashes
 		if err := worker.CollectVerifiedSlashes(); err != nil {
 			return nil, err
@@ -237,6 +246,9 @@ func (consensus *Consensus) ProposeNewBlock(now time.Time, commitSigs chan []byt
 	if err != nil {
 		consensus.GetLogger().Error().Err(err).Msg("[ProposeNewBlock] Failed finalizing the new block")
 		return nil, err
+	}
+	if err := core.ValidateEmergencyRecoveryBlockPolicy(consensus.Blockchain().Config(), finalizedBlock); err != nil {
+		return nil, errors.Wrap(err, "proposed block contains an emergency-frozen payload")
 	}
 
 	consensus.GetLogger().Info().Msg("[ProposeNewBlock] verifying the new block header")

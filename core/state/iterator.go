@@ -22,6 +22,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/trie"
 )
@@ -115,20 +116,25 @@ func (it *NodeIterator) step() error {
 	}
 	it.dataIt = dataTrie.NodeIterator(nil)
 	if !it.dataIt.Next(true) {
+		if err := it.dataIt.Error(); err != nil {
+			return err
+		}
 		it.dataIt = nil
 	}
 	if !bytes.Equal(account.CodeHash, types.EmptyCodeHash.Bytes()) {
 		it.codeHash = common.BytesToHash(account.CodeHash)
 		addrHash := common.BytesToHash(it.stateIt.LeafKey())
-		it.code, err = it.state.db.ContractCode(addrHash, common.BytesToHash(account.CodeHash))
-		if err != nil {
-			return fmt.Errorf("code %x: %v", account.CodeHash, err)
-		}
-		if it.code == nil || len(it.code) == 0 {
-			it.code, err = it.state.db.ValidatorCode(addrHash, common.BytesToHash(account.CodeHash))
-			if err != nil {
-				return fmt.Errorf("code %x: %v", account.CodeHash, err)
+		it.code, err = it.state.db.ContractCode(addrHash, it.codeHash)
+		if err != nil || len(it.code) == 0 {
+			contractErr := err
+			it.code, err = it.state.db.ValidatorCode(addrHash, it.codeHash)
+			if err != nil || len(it.code) == 0 {
+				return fmt.Errorf("code %x unavailable (contract: %v, validator: %v)",
+					account.CodeHash, contractErr, err)
 			}
+		}
+		if got := crypto.Keccak256Hash(it.code); got != it.codeHash {
+			return fmt.Errorf("code %x hash mismatch: got %x", account.CodeHash, got)
 		}
 	}
 	it.accountHash = it.stateIt.Parent()

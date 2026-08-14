@@ -1,0 +1,167 @@
+package consensus
+
+import (
+	"math"
+	"math/big"
+	"testing"
+
+	"github.com/harmony-one/abool"
+	msg_pb "github.com/harmony-one/harmony/api/proto/message"
+	"github.com/harmony-one/harmony/consensus/quorum"
+	"github.com/harmony-one/harmony/crypto/bls"
+	"github.com/harmony-one/harmony/internal/params"
+	"github.com/harmony-one/harmony/shard"
+	"github.com/stretchr/testify/require"
+)
+
+func TestEmergencyRecoveryViewIDFloorScopeFailsClosed(t *testing.T) {
+	require.Equal(t, uint64(1_000_000_000), EmergencyRecoveryViewIDFloor)
+
+	mainnet := &params.ChainConfig{ChainID: new(big.Int).Set(params.MainnetChainID)}
+	testnet := &params.ChainConfig{ChainID: new(big.Int).Set(params.TestnetChainID)}
+
+	tests := []struct {
+		name       string
+		config     *params.ChainConfig
+		shardID    uint32
+		headHeight uint64
+		applies    bool
+		wantErr    error
+	}{
+		{name: "nil config", shardID: shard.BeaconChainShardID, headHeight: EmergencyRecoveryRetainedBlock},
+		{name: "testnet", config: testnet, shardID: shard.BeaconChainShardID, headHeight: EmergencyRecoveryRetainedBlock},
+		{name: "shard one", config: mainnet, shardID: 1, headHeight: EmergencyRecoveryRetainedBlock},
+		{name: "before retained block", config: mainnet, shardID: shard.BeaconChainShardID, headHeight: EmergencyRecoveryRetainedBlock - 1},
+		{
+			name:       "applicable mainnet shard zero build requires audited floor",
+			config:     mainnet,
+			shardID:    shard.BeaconChainShardID,
+			headHeight: EmergencyRecoveryRetainedBlock,
+			applies:    true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			floor, applies, err := emergencyRecoveryViewIDFloorFor(test.config, test.shardID, test.headHeight)
+			require.Equal(t, test.applies, applies)
+			if test.applies && EmergencyRecoveryViewIDFloor == 0 {
+				require.ErrorIs(t, err, ErrEmergencyRecoveryViewIDFloorUnset)
+			} else {
+				require.ErrorIs(t, err, test.wantErr)
+				if test.applies {
+					require.Equal(t, EmergencyRecoveryViewIDFloor, floor)
+				}
+			}
+		})
+	}
+}
+
+func TestRecoveryViewIDSettersAreFlooredAndMonotonic(t *testing.T) {
+	state := NewState(Normal, shard.BeaconChainShardID)
+	state.SetCurBlockViewID(10)
+	state.SetViewChangingID(11)
+	state.SetViewIDFloor(100)
+
+	require.Equal(t, uint64(100), state.GetViewIDFloor())
+	require.Equal(t, uint64(100), state.GetCurBlockViewID())
+	require.Equal(t, uint64(100), state.GetViewChangingID())
+
+	state.SetCurBlockViewID(1)
+	state.SetViewChangingID(2)
+	require.Equal(t, uint64(100), state.GetCurBlockViewID())
+	require.Equal(t, uint64(100), state.GetViewChangingID())
+
+	state.SetCurBlockViewID(105)
+	state.SetViewChangingID(3)
+	require.Equal(t, uint64(105), state.GetCurBlockViewID())
+	require.Equal(t, uint64(105), state.GetViewChangingID())
+
+	state.SetViewIDFloor(50)
+	require.Equal(t, uint64(100), state.GetViewIDFloor())
+}
+
+func TestOrdinaryViewIDSettersMayLowerWithoutRecoveryFloor(t *testing.T) {
+	state := NewState(Normal, shard.BeaconChainShardID)
+	state.SetCurBlockViewID(10)
+	state.SetViewChangingID(11)
+	state.SetCurBlockViewID(3)
+	state.SetViewChangingID(4)
+
+	require.Equal(t, uint64(3), state.GetCurBlockViewID())
+	require.Equal(t, uint64(4), state.GetViewChangingID())
+}
+
+func TestRecoveryNextViewIDUsesFloorAndStrictSuccessor(t *testing.T) {
+	state := NewState(Normal, shard.BeaconChainShardID)
+	state.SetViewIDFloor(100)
+
+	next, err := state.nextViewID(1)
+	require.NoError(t, err)
+	require.Equal(t, uint64(101), next)
+
+	next, _, err = state.getNextViewID(nil, nil)
+	require.NoError(t, err)
+	require.Equal(t, uint64(101), next)
+
+	state.blockViewID = math.MaxUint64
+	_, err = state.nextViewID(1)
+	require.ErrorIs(t, err, ErrViewIDExhausted)
+	_, err = checkedNextViewID(math.MaxUint64)
+	require.ErrorIs(t, err, ErrViewIDExhausted)
+	_, err = checkedAddViewID(math.MaxUint64, 1)
+	require.ErrorIs(t, err, ErrViewIDExhausted)
+
+	gap, err := checkedLeaderViewGap(100, 90)
+	require.NoError(t, err)
+	require.Equal(t, 9, gap)
+	_, err = checkedLeaderViewGap(89, 90)
+	require.Error(t, err)
+}
+
+func TestRecoveryInboundMessagesCannotLowerViewID(t *testing.T) {
+	consensus := &Consensus{
+		current:           NewState(Normal, shard.BeaconChainShardID),
+		IgnoreViewIDCheck: abool.NewBool(true),
+	}
+	consensus.current.SetViewIDFloor(100)
+	message := &FBFTMessage{ViewID: 99}
+
+	require.ErrorIs(t, consensus.checkViewID(message), ErrEmergencyRecoveryViewIDBelowFloor)
+	require.False(t, consensus.onViewChangeSanityCheck(message))
+	require.False(t, consensus.onNewViewSanityCheck(message))
+	require.True(t, consensus.IgnoreViewIDCheck.IsSet())
+}
+
+func TestRecoveryConstructRefusesCorruptViewBelowFloor(t *testing.T) {
+	consensus := &Consensus{current: NewState(Normal, shard.BeaconChainShardID)}
+	consensus.current.SetViewIDFloor(100)
+	// Emulate memory corruption or a future call site bypassing the setter.
+	consensus.current.blockViewID = 99
+
+	_, err := consensus.construct(msg_pb.MessageType_PREPARE, nil, nil)
+	require.ErrorIs(t, err, ErrEmergencyRecoveryViewIDBelowFloor)
+}
+
+func TestRecoveryLeaderSelectionUsesClampedNextViewID(t *testing.T) {
+	state := NewState(Normal, shard.BeaconChainShardID)
+	state.SetViewIDFloor(100)
+	decider := quorum.NewDecider(quorum.SuperMajorityVote, shard.BeaconChainShardID)
+
+	wrappedKeys := make([]bls.PublicKeyWrapper, 0, 3)
+	for range 3 {
+		privateKey := bls.RandPrivateKey()
+		publicKey := privateKey.GetPublicKey()
+		serialized := bls.SerializedPublicKey{}
+		serialized.FromLibBLSPublicKey(publicKey)
+		wrappedKeys = append(wrappedKeys, bls.PublicKeyWrapper{Object: publicKey, Bytes: serialized})
+	}
+	decider.UpdateParticipants(wrappedKeys, []bls.PublicKeyWrapper{})
+	state.setLeaderPubKey(&wrappedKeys[0])
+
+	// Without a chain header, leader selection advances once relative to the
+	// current leader while still clamping the supplied view to the exact floor.
+	next := state.getNextLeaderKey(nil, decider, 1, nil)
+	require.NotNil(t, next)
+	require.True(t, next.Object.IsEqual(wrappedKeys[1].Object))
+}
