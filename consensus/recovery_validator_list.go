@@ -12,13 +12,11 @@ import (
 )
 
 const (
-	// TODO(recovery-release): These values are release blockers. Replace them
-	// with the independently audited validator list at block 92730034 before
-	// producing the recovery binary. The digest is SHA-256 over the RLP encoding
-	// of []common.Address, exactly matching the canonical encoding stored by
-	// rawdb.WriteValidatorList.
-	EmergencyRecoveryValidatorListCount     uint64 = 0
-	EmergencyRecoveryValidatorListSHA256Hex        = "REPLACE_WITH_TARGET_VALIDATOR_LIST_SHA256"
+	// These values pin the independently audited validator list at block
+	// 92730034. The digest is SHA-256 over the RLP encoding of []common.Address,
+	// exactly matching the canonical encoding stored by rawdb.WriteValidatorList.
+	EmergencyRecoveryValidatorListCount     uint64 = 771
+	EmergencyRecoveryValidatorListSHA256Hex        = "0xf5dc6b4879ed956818c19d7e68b41044be251284d37b09735d896cc3d657050d"
 )
 
 var (

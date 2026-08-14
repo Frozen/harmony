@@ -20,6 +20,16 @@ func recoveryValidatorListManifestForTest(
 	return uint64(len(validators)), "0x" + hex.EncodeToString(digest[:])
 }
 
+func TestEmergencyRecoveryValidatorListReleaseManifest(t *testing.T) {
+	require.Equal(t, uint64(771), EmergencyRecoveryValidatorListCount)
+	require.Equal(t,
+		"0xf5dc6b4879ed956818c19d7e68b41044be251284d37b09735d896cc3d657050d",
+		EmergencyRecoveryValidatorListSHA256Hex,
+	)
+	_, err := parseEmergencyRecoveryValidatorListDigest(EmergencyRecoveryValidatorListSHA256Hex)
+	require.NoError(t, err)
+}
+
 func TestEmergencyRecoveryValidatorListManifestAcceptsExactOrderedList(t *testing.T) {
 	validators := []common.Address{
 		common.HexToAddress("0x0000000000000000000000000000000000000001"),
