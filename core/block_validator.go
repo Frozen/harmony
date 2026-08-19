@@ -184,6 +184,18 @@ func (v *BlockValidator) ValidateCXReceiptsProof(cxp *types.CXReceiptsProof) err
 	}
 
 	merkleProof := cxp.MerkleProof
+	if merkleProof == nil {
+		return errors.New("[ValidateCXReceiptsProof] missing merkle proof")
+	}
+	// The loop below indexes CXShardHashes by ShardIDs, so a shorter hash list is
+	// invalid. Preserve the legacy behavior of ignoring trailing hashes until an
+	// exact-length check can be activated in a coordinated release.
+	if len(merkleProof.CXShardHashes) < len(merkleProof.ShardIDs) {
+		return errors.Errorf(
+			"[ValidateCXReceiptsProof] merkle proof shardIDs/CXShardHashes length mismatch: %d vs %d",
+			len(merkleProof.ShardIDs), len(merkleProof.CXShardHashes),
+		)
+	}
 	shardRoot := common.Hash{}
 	foundMatchingShardID := false
 	byteBuffer := bytes.Buffer{}
