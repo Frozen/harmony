@@ -112,6 +112,7 @@ type Decider interface {
 	fmt.Stringer
 	SignatureReader
 	SetVoters(subCommittee *shard.Committee, epoch *big.Int, strictVotePower bool) (*TallyResult, error)
+	SetVotersWithContext(subCommittee *shard.Committee, epoch *big.Int, strictVotePower bool, ctx VotingPowerContext) (*TallyResult, error)
 	Policy() Policy
 	AddNewVote(
 		p Phase, pubkeys []*bls_cosi.PublicKeyWrapper,

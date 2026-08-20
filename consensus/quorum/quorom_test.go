@@ -79,7 +79,7 @@ func TestUniformVerifierQuorumByMask(t *testing.T) {
 				mask = bls.NewMask(publics)
 				require.NoError(t, mask.SetMask(test.bitmap))
 			}
-			assert.Equal(t, test.quorum, verifier.IsQuorumAchievedByMask(mask))
+			assert.Equal(t, test.quorum, verifier.IsQuorumAchievedByMask(mask, VotingPowerContext{}))
 		})
 	}
 }

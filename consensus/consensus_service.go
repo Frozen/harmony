@@ -9,6 +9,7 @@ import (
 	bls_core "github.com/harmony-one/bls/ffi/go/bls"
 	"github.com/harmony-one/harmony/api/proto"
 	msg_pb "github.com/harmony-one/harmony/api/proto/message"
+	"github.com/harmony-one/harmony/block"
 	consensus_engine "github.com/harmony-one/harmony/consensus/engine"
 	"github.com/harmony-one/harmony/consensus/quorum"
 	"github.com/harmony-one/harmony/consensus/signature"
@@ -19,6 +20,7 @@ import (
 	"github.com/harmony-one/harmony/crypto/hash"
 	"github.com/harmony-one/harmony/internal/chain"
 	nodeconfig "github.com/harmony-one/harmony/internal/configs/node"
+	"github.com/harmony-one/harmony/internal/params"
 	"github.com/harmony-one/harmony/internal/utils"
 	"github.com/harmony-one/harmony/multibls"
 	"github.com/harmony-one/harmony/p2p"
@@ -451,10 +453,11 @@ func (consensus *Consensus) updateConsensusInformation(reason string) Mode {
 		Msg("[UpdateConsensusInformation] Successfully updated public keys")
 	consensus.updatePublicKeys(pubKeys, shard.Schedule.InstanceForEpoch(nextEpoch).ExternalAllowlist())
 
-	// Update voters in the committee
-	if _, err := consensus.decider().SetVoters(
+	// Update voters in the committee for the next signed block.
+	if _, err := consensus.decider().SetVotersWithContext(
 		committeeToSet, epochToSet,
 		consensus.Blockchain().Config().IsStrictStateValidation(epochToSet),
+		votingPowerContextForNextBlock(consensus.Blockchain().Config(), curHeader),
 	); err != nil {
 		consensus.getLogger().Error().
 			Err(err).
@@ -516,6 +519,14 @@ func (consensus *Consensus) updateConsensusInformation(reason string) Mode {
 
 	// not in committee
 	return Listening
+}
+
+func votingPowerContextForNextBlock(config *params.ChainConfig, header *block.Header) quorum.VotingPowerContext {
+	return quorum.VotingPowerContext{
+		ChainID:     config.ChainID,
+		BlockNumber: header.NumberU64() + 1,
+		ParentHash:  header.Hash(),
+	}
 }
 
 // IsLeader check if the node is a leader or not by comparing the public key of

@@ -128,6 +128,12 @@ func (a threadSafeDeciderImpl) SetVoters(subCommittee *shard.Committee, epoch *b
 	return a.decider.SetVoters(subCommittee, epoch, strictVotePower)
 }
 
+func (a threadSafeDeciderImpl) SetVotersWithContext(subCommittee *shard.Committee, epoch *big.Int, strictVotePower bool, ctx VotingPowerContext) (*TallyResult, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.decider.SetVotersWithContext(subCommittee, epoch, strictVotePower, ctx)
+}
+
 func (a threadSafeDeciderImpl) Policy() Policy {
 	a.mu.RLock()
 	defer a.mu.RUnlock()

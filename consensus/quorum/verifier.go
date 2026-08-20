@@ -5,6 +5,7 @@ import (
 
 	"github.com/harmony-one/harmony/consensus/votepower"
 	bls_cosi "github.com/harmony-one/harmony/crypto/bls"
+	"github.com/harmony-one/harmony/internal/utils"
 	"github.com/harmony-one/harmony/numeric"
 	"github.com/harmony-one/harmony/shard"
 	"github.com/pkg/errors"
@@ -13,7 +14,7 @@ import (
 // Verifier is the interface to verify the whether the quorum is achieved by mask at each epoch.
 // TODO: Add some unit tests to make sure Verifier get exactly the same result as Decider
 type Verifier interface {
-	IsQuorumAchievedByMask(mask *bls_cosi.Mask) bool
+	IsQuorumAchievedByMask(mask *bls_cosi.Mask, ctx VotingPowerContext) bool
 }
 
 // NewVerifier creates the quorum verifier for the given committee, epoch and whether the scenario
@@ -28,7 +29,8 @@ func NewVerifier(committee *shard.Committee, epoch *big.Int, isStaking bool, str
 // stakeVerifier is the quorum verifier for staking period. Each validator has staked token as
 // a voting power of the final result.
 type stakeVerifier struct {
-	r votepower.Roster
+	r     votepower.Roster
+	epoch *big.Int
 }
 
 // newStakeVerifier creates a stake verifier from the given committee
@@ -38,16 +40,22 @@ func newStakeVerifier(committee *shard.Committee, epoch *big.Int, strictVotePowe
 		return nil, errors.Wrap(err, "compute staking vote-power")
 	}
 	return &stakeVerifier{
-		r: *r,
+		r:     *r,
+		epoch: new(big.Int).Set(epoch),
 	}, nil
 }
 
 // IsQuorumAchievedByMask returns whether the quorum is achieved with the provided mask
-func (sv *stakeVerifier) IsQuorumAchievedByMask(mask *bls_cosi.Mask) bool {
+func (sv *stakeVerifier) IsQuorumAchievedByMask(mask *bls_cosi.Mask, ctx VotingPowerContext) bool {
 	if mask == nil {
 		return false
 	}
-	vp := sv.r.VotePowerByMask(mask)
+	roster, err := effectiveRosterForContext(&sv.r, sv.epoch, ctx)
+	if err != nil {
+		utils.Logger().Error().Err(err).Msg("unable to apply emergency voting-power roster")
+		return false
+	}
+	vp := roster.VotePowerByMask(mask)
 	return vp.GT(sv.threshold())
 }
 
@@ -71,7 +79,7 @@ func newUniformVerifier(committee *shard.Committee) (*uniformVerifier, error) {
 }
 
 // IsQuorumAchievedByMask returns whether the quorum is achieved with the provided mask.
-func (uv *uniformVerifier) IsQuorumAchievedByMask(mask *bls_cosi.Mask) bool {
+func (uv *uniformVerifier) IsQuorumAchievedByMask(mask *bls_cosi.Mask, _ VotingPowerContext) bool {
 	if mask == nil {
 		return false
 	}

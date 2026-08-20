@@ -200,10 +200,20 @@ func (v *stakedVoteWeight) IsAllSigsCollected() bool {
 func (v *stakedVoteWeight) SetVoters(
 	subCommittee *shard.Committee, epoch *big.Int, strictVotePower bool,
 ) (*TallyResult, error) {
+	return v.SetVotersWithContext(subCommittee, epoch, strictVotePower, VotingPowerContext{})
+}
+
+func (v *stakedVoteWeight) SetVotersWithContext(
+	subCommittee *shard.Committee, epoch *big.Int, strictVotePower bool, ctx VotingPowerContext,
+) (*TallyResult, error) {
 	v.ResetPrepareAndCommitVotes()
 	v.ResetViewChangeVotes()
 
 	roster, err := votepower.Compute(subCommittee, epoch, strictVotePower)
+	if err != nil {
+		return nil, err
+	}
+	roster, err = effectiveRosterForContext(roster, epoch, ctx)
 	if err != nil {
 		return nil, err
 	}
