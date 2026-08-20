@@ -666,14 +666,14 @@ func (e *engineImpl) VerifyCrossLink(chain engine.ChainReader, cl types.CrossLin
 		return errors.Errorf("not cross-link epoch: %v", cl.Epoch())
 	}
 
-	pas := payloadArgsFromCrossLink(cl)
+	pas := payloadArgsFromCrossLink(chain, cl)
 	sas := sigArgs{cl.Signature(), cl.Bitmap()}
 
 	return e.verifySignatureCached(chain, pas, sas)
 }
 
 func (e *engineImpl) verifySignatureCached(chain engine.ChainReader, pas payloadArgs, sas sigArgs) error {
-	verifiedKey := newVerifiedSigKey(pas.shardID, pas.blockHash, sas.sig, sas.bitmap)
+	verifiedKey := newVerifiedSigKey(chain.Config().ChainID, pas, sas.sig, sas.bitmap)
 	if _, ok := e.verifiedSigCache.Get(verifiedKey); ok {
 		return nil
 	}
@@ -700,7 +700,11 @@ func (e *engineImpl) verifySignature(chain engine.ChainReader, pas payloadArgs, 
 	if err != nil {
 		return errors.Wrap(err, "deserialize signature and bitmap")
 	}
-	if !qrVerifier.IsQuorumAchievedByMask(mask) {
+	if !qrVerifier.IsQuorumAchievedByMask(mask, quorum.VotingPowerContext{
+		ChainID:     chain.Config().ChainID,
+		BlockNumber: pas.number,
+		ParentHash:  pas.parentHash,
+	}) {
 		return errors.New("not enough signature collected")
 	}
 	commitPayload := pas.constructPayload(chain)
@@ -732,51 +736,79 @@ const bitmapKeyBytes = 64
 
 // verifiedSigKey is the key for caching header verification results
 type verifiedSigKey struct {
-	shardID   uint32
-	blockHash common.Hash
-	signature bls_cosi.SerializedSignature
-	bitmap    [bitmapKeyBytes]byte
+	chainID    string
+	shardID    uint32
+	epoch      string
+	number     uint64
+	viewID     uint64
+	blockHash  common.Hash
+	parentHash common.Hash
+	signature  bls_cosi.SerializedSignature
+	bitmapLen  uint64
+	bitmap     [bitmapKeyBytes]byte
 }
 
-func newVerifiedSigKey(shardID uint32, blockHash common.Hash, sig bls_cosi.SerializedSignature, bitmap []byte) verifiedSigKey {
+func newVerifiedSigKey(chainID *big.Int, pas payloadArgs, sig bls_cosi.SerializedSignature, bitmap []byte) verifiedSigKey {
 	var keyBM [bitmapKeyBytes]byte
 	copy(keyBM[:], bitmap)
 
 	return verifiedSigKey{
-		shardID:   shardID,
-		blockHash: blockHash,
-		signature: sig,
-		bitmap:    keyBM,
+		chainID:    bigIntCacheKey(chainID),
+		shardID:    pas.shardID,
+		epoch:      bigIntCacheKey(pas.epoch),
+		number:     pas.number,
+		viewID:     pas.viewID,
+		blockHash:  pas.blockHash,
+		parentHash: pas.parentHash,
+		signature:  sig,
+		bitmapLen:  uint64(len(bitmap)),
+		bitmap:     keyBM,
 	}
+}
+
+func bigIntCacheKey(value *big.Int) string {
+	if value == nil {
+		return "<nil>"
+	}
+	return value.String()
 }
 
 // payloadArgs is the arguments for constructing the payload for signature verification.
 type payloadArgs struct {
-	blockHash common.Hash
-	shardID   uint32
-	epoch     *big.Int
-	number    uint64
-	viewID    uint64
+	blockHash  common.Hash
+	parentHash common.Hash
+	shardID    uint32
+	epoch      *big.Int
+	number     uint64
+	viewID     uint64
 }
 
 func payloadArgsFromHeader(header *block.Header) payloadArgs {
 	return payloadArgs{
-		blockHash: header.Hash(),
-		shardID:   header.ShardID(),
-		epoch:     header.Epoch(),
-		number:    header.Number().Uint64(),
-		viewID:    header.ViewID().Uint64(),
+		blockHash:  header.Hash(),
+		parentHash: header.ParentHash(),
+		shardID:    header.ShardID(),
+		epoch:      header.Epoch(),
+		number:     header.Number().Uint64(),
+		viewID:     header.ViewID().Uint64(),
 	}
 }
 
-func payloadArgsFromCrossLink(cl types.CrossLink) payloadArgs {
-	return payloadArgs{
+func payloadArgsFromCrossLink(chain engine.ChainReader, cl types.CrossLink) payloadArgs {
+	args := payloadArgs{
 		blockHash: cl.Hash(),
 		shardID:   cl.ShardID(),
 		epoch:     cl.Epoch(),
 		number:    cl.Number().Uint64(),
 		viewID:    cl.ViewID().Uint64(),
 	}
+	// Cross-links do not encode the signed block's parent hash. Recover it when
+	// the signed header is available locally so hash-anchored quorum rules remain
+	// verifiable without weakening their activation guard.
+	if header := chain.GetHeader(args.blockHash, args.number); header != nil {
+		args.parentHash = header.ParentHash()
+	}
+	return args
 }
 
 func (args payloadArgs) constructPayload(chain engine.ChainReader) []byte {

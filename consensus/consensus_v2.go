@@ -929,7 +929,10 @@ func (consensus *Consensus) setupForNewConsensus(blk *types.Block, committedMsg 
 	}
 
 	// Update consensus keys at last so the change of leader status doesn't mess up normal flow
-	if blk.IsLastBlockInEpoch() {
+	if blk.IsLastBlockInEpoch() || quorum.RequiresVotingPowerRefreshAfterBlock(
+		consensus.Blockchain().Config().ChainID,
+		blk.ShardID(), blk.NumberU64(), blk.Hash(),
+	) {
 		consensus.setMode(consensus.updateConsensusInformation("setupForNewConsensus"))
 	}
 	consensus.fBFTLog.PruneCacheBeforeBlock(blk.NumberU64())

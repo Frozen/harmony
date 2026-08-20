@@ -494,7 +494,10 @@ func TestVerifiedSigCacheKeyIncludesShardID(t *testing.T) {
 	var sig bls.SerializedSignature
 	bitmap := []byte{0xff}
 
-	if newVerifiedSigKey(1, hash, sig, bitmap) == newVerifiedSigKey(2, hash, sig, bitmap) {
+	first := payloadArgs{shardID: 1, blockHash: hash, epoch: big.NewInt(1)}
+	second := first
+	second.shardID = 2
+	if newVerifiedSigKey(big.NewInt(1), first, sig, bitmap) == newVerifiedSigKey(big.NewInt(1), second, sig, bitmap) {
 		t.Fatal("verified signature cache keys must include shard ID")
 	}
 }

@@ -96,6 +96,12 @@ func (v *uniformVoteWeight) SetVoters(
 	return nil, nil
 }
 
+func (v *uniformVoteWeight) SetVotersWithContext(
+	subCommittee *shard.Committee, epoch *big.Int, strictVotePower bool, _ VotingPowerContext,
+) (*TallyResult, error) {
+	return v.SetVoters(subCommittee, epoch, strictVotePower)
+}
+
 func (v *uniformVoteWeight) String() string {
 	s, _ := json.Marshal(v)
 	return string(s)
